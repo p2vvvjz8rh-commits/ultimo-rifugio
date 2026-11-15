@@ -130,6 +130,15 @@ func _physics_process(delta: float) -> void:
         direction = direction.normalized()
         last_direction = direction
         visual.look_toward(direction, delta)
+    # Invito morbido verso il centro del cancello quando ci si entra o esce.
+    # Non altera il movimento laterale lungo le mura.
+    if game.stockade_built and absf(direction.z) > 0.25:
+        if global_position.z > 2.4 and global_position.z < 6.7 and absf(global_position.x) < 3.1:
+            var pull: float = clampf(-global_position.x * 0.9,-1.0,1.0)
+            direction.x = lerpf(direction.x,pull,0.72)
+            direction = direction.normalized()
+            last_direction = direction
+            visual.look_toward(direction,delta)
     var moving_now: bool = direction.length_squared() > 0.01
     var speed := 4.2 if dash_time <= 0.0 else 9.0
     velocity.x = direction.x * speed
