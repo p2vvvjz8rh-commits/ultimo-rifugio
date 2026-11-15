@@ -1,9 +1,9 @@
-; Ultimo Rifugio - ALFA 12 / Godot 4.7.2 (GDScript, 3D nativo).
+; Ultimo Rifugio - ALFA 13 / Godot 4.7.2 (GDScript, 3D nativo).
 ; Il progetto importa i file glTF originali del kit Quaternius CC0.
 config_version=5
 
 [application]
-config/name="Ultimo Rifugio - Alfa 12"
+config/name="Ultimo Rifugio - Alfa 13"
 run/main_scene="res://scenes/World.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
