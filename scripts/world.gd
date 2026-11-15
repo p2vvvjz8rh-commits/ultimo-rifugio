@@ -817,7 +817,7 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
         damage_base(damage)
         return
     if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
-        gate_hp = maxf(0.0,gate_hp-damage * .60)
+        gate_hp = maxf(0.0,gate_hp-damage * .36)
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
             gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
@@ -833,7 +833,7 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
     var section: Dictionary = wall_segments[index]
     if float(section["hp"]) <= 0.0:
         return
-    section["hp"] = maxf(0.0, float(section["hp"]) - damage * .60)
+    section["hp"] = maxf(0.0, float(section["hp"]) - damage * .36)
     var hp: float = float(section["hp"])
     var indicator: Label3D = section["indicator"]
     indicator.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
@@ -1137,7 +1137,7 @@ func _start_new_game() -> void:
     var current: String = _save_directory().path_join("partita.json")
     if FileAccess.file_exists(current):
         var backup: String = _save_directory().path_join("partita_backup_%s.json" % Time.get_datetime_string_from_system().replace(":","-"))
-        var status: Error = DirAccess.rename_absolute(current,backup)
+        var status: int = DirAccess.rename_absolute(current,backup)
         if status != OK:
             show_message("Impossibile creare backup della partita. Operazione annullata.",3.0)
             return
