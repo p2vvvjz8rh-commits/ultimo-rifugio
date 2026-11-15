@@ -705,7 +705,8 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
         crack.position = Vector3(center.x + size.x*.5 + .035,1.35,center.z)
         crack.rotation.z = 0.0
         crack.rotation.y = .35
-        (crack.mesh as BoxMesh).size = Vector3(.09,.11,minf(size.z*.65,1.15))
+        var damage_box: BoxMesh = crack.mesh as BoxMesh
+        damage_box.size = Vector3(.09,.11,minf(size.z*.65,1.15))
     crack.visible = false
     wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals,"crack":crack})
 
