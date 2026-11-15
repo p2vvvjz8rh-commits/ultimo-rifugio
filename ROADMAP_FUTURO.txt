@@ -1,0 +1,32 @@
+ULTIMO RIFUGIO - IDEE APPROVATE PER IL FUTURO
+================================================
+Queste sono idee di sviluppo, NON tutte realizzate ora.
+
+1. BASE IN CRESCITA
+- Ampliamento progressivo del perimetro della palizzata e area edificabile.
+- Postazioni produttive fisiche nella base: officina, segheria, magazzino, generatore.
+- Potenziamenti e riparazioni mirati per singole strutture.
+- Il gioco rimane esplorazione + combattimento + costruzione, non una fabbrica di monete.
+
+2. ESPLORAZIONE E ISTANZE
+- Piccole aree separate: supermercato abbandonato, bunker, camion di rifornimenti, laboratorio.
+- Mini-missioni di 3-8 minuti con ricompense e obiettivi diversi.
+- Meccanica: ritirarsi con il bottino o rischiare per recuperare di piu.
+- Preferenza PROVVISORIA per missioni variabili (B); non eliminare A (a mano) o C (procedurali).
+
+3. PROGRESSIONE
+- Progetti rari da trovare esplorando, necessari per sbloccare tecnologie e costruzioni.
+- Materiali e oggetti che hanno uno scopo nella base.
+- Sopravvissuti da salvare e assegnare a compiti, visibili mentre lavorano.
+- Eventi dinamici nel bosco (grida, fumo, assalti in corso).
+
+4. ESPERIENZA VISIVA
+- Personaggi Quaternius e animazioni migliorate, estetica low-poly curata.
+- Telecamera isometrica con zoom, trasparenza intelligente e UI leggibile.
+- Terreno e costruzioni sempre piu ricchi; performance prioritaria.
+- Nuovi tipi di zombie NON ora: utente vuole prima rifinire quelli esistenti.
+
+5. LINEE GUIDA
+- Evoluzione graduale, piccoli test giocabili, nessun sistema complicato di fame/sete.
+- Il salvataggio e gli aggiornamenti automatici devono rimanere affidabili.
+- Quando possibile verificare con video reali e non screenshot generati.
