@@ -1,1 +1,1 @@
-Ultimo Rifugio - Alfa 10: trasparenza selettiva di alberi, muri e rifugio; ambientazione arricchita; banco di riparazione (E, 8 legno); segni di danno sulle mura. Tipi di zombie invariati.
+Ultimo Rifugio - Alfa 11: nuova partita con backup, casse di scorte e obiettivi, assalti distanziati, mura e cancello robusti, brecce localizzate, passaggio assistito e banco riparazioni corretto.
