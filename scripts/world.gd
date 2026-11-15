@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 12 - sistema di salute universale delle strutture, danni visivi e strumenti collaudo.
+## ALFA 13 - paesaggio rifinito e missione radio opzionale.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
@@ -85,6 +85,7 @@ var repair_popup: PopupPanel
 var test_panel: PanelContainer
 var test_panel_visible: bool = false
 var test_stats: Label
+var radio_station
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -94,6 +95,7 @@ func _ready() -> void:
     _create_forest()
     _decorate_world()
     _create_hero()
+    _create_radio_station()
     _create_camera()
     _create_hud()
     _load_progress()
@@ -154,6 +156,9 @@ func _input(event: InputEvent) -> void:
                 if not paused: _test_start_raid()
             KEY_F3:
                 _toggle_test_panel()
+            KEY_R:
+                if not paused and is_instance_valid(radio_station):
+                    radio_station.activate()
 
 func _unhandled_input(event: InputEvent) -> void:
     # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
@@ -297,6 +302,14 @@ func _create_cabin() -> void:
         _box(base, "Trave", Vector3(1.74, 1.22, z), Vector3(.16, 2.4, .18), "#684833")
     _box(base, "Tetto_sinistro", Vector3(-1.02, 2.79, 0.0), Vector3(2.55, .17, 4.5), "#425a65", -0.36)
     _box(base, "Tetto_destro", Vector3(1.02, 2.79, 0.0), Vector3(2.55, .17, 4.5), "#354c55", 0.36)
+    # Bordature del tetto, travi del portico e dettagli della facciata.
+    for side in [-1.0,1.0]:
+        _box(base,"Fascia_sottotetto",Vector3(side*1.69,2.31,0.0),Vector3(.13,.18,4.72),"#6b5542")
+        _box(base,"Trave_frontone",Vector3(side*1.02,2.67,2.28),Vector3(2.10,.12,.14),"#816347",side*-.36)
+        _box(base,"Colonna_portico",Vector3(side*1.28,1.26,3.51),Vector3(.15,2.40,.16),"#71523b")
+    _box(base,"Architrave_portico",Vector3(0,2.43,3.52),Vector3(2.88,.18,.19),"#785840")
+    for n in range(4):
+        _box(base,"Listello_facciata_%d" % n,Vector3(-1.42+float(n)*.95,.44,1.93),Vector3(.045,.68,.075),"#785a44")
     _box(base, "Porta", Vector3(0, .85, 1.90), Vector3(.98, 1.62, .14), "#45372b")
     _cone(base, "Maniglia", Vector3(.35, .84, 2.02), .055, .065, "#e4b46e", .055)
     for dx in [-1.0, 1.0]:
@@ -329,6 +342,15 @@ func _create_cabin() -> void:
     _cone(base,"Lanterna_palo",Vector3(-2.35,1.10,2.25),.07,2.0,"#574b39",.07)
     _box(base,"Lanterna",Vector3(-2.35,2.06,2.25),Vector3(.36,.46,.36),"#f4c76f")
     _box(base,"Lanterna_cappello",Vector3(-2.35,2.34,2.25),Vector3(.45,.12,.45),"#504638")
+    var porch_light := OmniLight3D.new()
+    porch_light.name = "Luce_lanterna_portico"
+    porch_light.position = Vector3(-2.35,2.04,2.25)
+    porch_light.light_color = Color("#f9c87f")
+    porch_light.omni_range = 4.0
+    porch_light.light_energy = .36
+    base.add_child(porch_light)
+    for i in range(3):
+        _box(base,"Sacchi_scorte_%d" % i,Vector3(2.35+float(i%2)*.38,.22,-.55+float(i/2)*.52),Vector3(.52,.42,.35),"#938669")
     _register_occluders(base)
     for item in base.get_children():
         if item is MeshInstance3D and String(item.name) != "Fondamenta":
@@ -354,6 +376,13 @@ func _decorate_world() -> void:
             continue
         var patch := _box(self,"Terra_smotata",Vector3(x,-.005,z),Vector3(rng.randf_range(.9,2.5),.024,rng.randf_range(.7,1.8)),"#788360")
         patch.rotation.y = rng.randf_range(0,TAU)
+    # Piccoli fiori e funghi segnalano gli angoli meno frequentati del bosco.
+    for i in range(58):
+        var p: Vector2 = Vector2(rng.randf_range(-21.0,21.0),rng.randf_range(-21.0,21.0))
+        if (absf(p.x) < 6.0 and p.y > -8.5 and p.y < 5.0) or p.distance_to(Vector2(13.0,-10.0)) < 2.6:
+            continue
+        var flower := _cone(self,"Fiore_di_bosco",Vector3(p.x,.20,p.y),.11,.20,"#e1b78e" if i%3 == 0 else ("#c5c2dc" if i%3 == 1 else "#e7d2a2"))
+        flower.rotation.z = rng.randf_range(-.22,.22)
     for i in range(8):
         var x: float = rng.randf_range(-18.0,18.0)
         var z: float = rng.randf_range(-18.0,18.0)
@@ -372,6 +401,8 @@ func _create_forest() -> void:
         var pos := Vector2(rng.randf_range(-20.0, 20.0), rng.randf_range(-20.0, 20.0))
         if absf(pos.x) < 6.6 and pos.y > -9.0 and pos.y < 7.8:
             continue
+        if pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
+            continue
         if pos.length() < 10.5 and rng.randf() < .75:
             continue
         _create_tree(pos.x, pos.y, rng.randf_range(.85, 1.5), true)
@@ -379,6 +410,8 @@ func _create_forest() -> void:
         var x := rng.randf_range(-20,20)
         var z := rng.randf_range(-20,20)
         if absf(x) < 7 and absf(z + 2.0) < 9:
+            continue
+        if Vector2(x,z).distance_to(Vector2(13.0,-10.0)) < 3.5:
             continue
         _rock(self,"Roccia",Vector3(x,.21,z), Vector3(rng.randf_range(.55,1.6),rng.randf_range(.35,.8),rng.randf_range(.7,1.4)),"#858e7d")
 
@@ -407,6 +440,18 @@ func _create_hero() -> void:
     add_child(hero)
     hero.global_position = Vector3(0, 0.10, 7.0)
     hero.configure(self)
+
+func _create_radio_station() -> void:
+    radio_station = preload("res://scripts/radio_event.gd").new()
+    add_child(radio_station)
+    radio_station.configure(self)
+    # Un sentiero di terra collega visivamente la radura alla nuova scoperta.
+    for i in range(11):
+        var k: float = float(i)/10.0
+        var x: float = lerpf(5.8,13.0,k)
+        var z: float = lerpf(4.9,-10.0,k)
+        var step_mesh := _box(self,"Sentiero_verso_radio",Vector3(x,-.003,z),Vector3(1.45,.027,1.85),"#8b8466")
+        step_mesh.rotation.y = .3
 
 func _create_camera() -> void:
     camera = Camera3D.new()
@@ -1222,7 +1267,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 12",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 13",13,Color("#e6bb77"))
     var start_over := Button.new()
     start_over.text = "NUOVA PARTITA"
     start_over.custom_minimum_size = Vector2(150,28)
@@ -1278,7 +1323,7 @@ func _create_hud() -> void:
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
     _create_test_panel(root)
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   R: radio   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
@@ -1297,7 +1342,9 @@ func _update_hud() -> void:
     top_hud.text = "LEGNO %d    MONETE %d   |   ZOOM: %d%%" % [wood,coins,roundi(100.0/camera_distance)]
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
-    objective_hud.text = "SCORTE %d/%d   |   ORDA IN %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
+    objective_hud.text = "SCORTE %d/%d  |  ORDA %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
+    if is_instance_valid(radio_station) and radio_station.active:
+        objective_hud.text = "DIFENDI LA RADIO: %ds  |  ORDA %d:%02d" % [ceili(radio_station.remaining),int(remain / 60),remain % 60]
     if not stockade_built:
         build_button.text = "RECINTO · %d LEGNO" % FENCE_COST
         build_button.disabled = wood < FENCE_COST
@@ -1480,7 +1527,9 @@ func _save_progress() -> void:
     var file := FileAccess.open(path,FileAccess.WRITE)
     if file == null:
         return
-    var data := {"version":8,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
+    var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
+    var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
+    var data := {"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1506,6 +1555,9 @@ func _load_progress() -> void:
     elapsed = float(parsed.get("elapsed",0.0))
     next_raid = maxf(elapsed + 180.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
     raid_number = int(parsed.get("raid_number",0))
+    if is_instance_valid(radio_station):
+        radio_station.completed = int(parsed.get("radio_finished",0))
+        radio_station.next_ready = float(parsed.get("radio_next_ready",0.0))
     hero.hp = float(parsed.get("hp",100.0))
     hero._update_health_bar()
     hero.global_position = Vector3(float(parsed.get("px",0.0)), .13, float(parsed.get("pz",7.0)))
