@@ -4,6 +4,14 @@ extends CharacterBody3D
 var game
 var visual
 var hp: float = 100.0
+# Bilanciamento temporaneo per il collaudo: guarigione automatica dopo 4 secondi senza danni.
+const REGEN_WAIT := 4.0
+const REGEN_HP_PER_SECOND := 9.0
+const DAMAGE_MULTIPLIER := 0.70
+const HIT_GRACE_SECONDS := 0.55
+var since_last_hit: float = 999.0
+var hit_grace: float = 0.0
+var regen_ui_timer: float = 0.0
 var attack_cooldown: float = 0.0
 var chop_cooldown: float = 0.0
 var action_timer: float = 0.0
@@ -46,7 +54,7 @@ func _create_health_bar() -> void:
     add_child(health_sprite)
     health_text = Label3D.new()
     health_text.name = "Vita_numerica"
-    health_text.position = Vector3(0.0,2.84,0.0)
+    health_text.position = Vector3(0.0,2.96,0.0)
     health_text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
     health_text.no_depth_test = true
     health_text.font_size = 30
@@ -65,13 +73,13 @@ func _update_health_bar() -> void:
     health_text.text = "%d/100" % ceili(hp)
     if not health_sprite.visible:
         return
-    var img := Image.create(152,26,false,Image.FORMAT_RGBA8)
+    var img := Image.create(152,46,false,Image.FORMAT_RGBA8)
     img.fill(Color("#17211ce9"))
-    img.fill_rect(Rect2i(3,3,146,20),Color("#331e1e"))
+    img.fill_rect(Rect2i(3,4,146,38),Color("#331e1e"))
     var width: int = clampi(roundi(146.0 * hp / 100.0),0,146)
     if width > 0:
         var fill_color: Color = Color("#ee4444") if hp <= 25.0 else (Color("#f2a13d") if hp <= 50.0 else Color("#58d978"))
-        img.fill_rect(Rect2i(3,3,width,20),fill_color)
+        img.fill_rect(Rect2i(3,4,width,38),fill_color)
     health_sprite.texture = ImageTexture.create_from_image(img)
 
 func set_mouse_destination(point: Vector3) -> void:
@@ -91,6 +99,14 @@ func _physics_process(delta: float) -> void:
     special_cooldown = maxf(0.0, special_cooldown - delta)
     dash_cooldown = maxf(0.0, dash_cooldown - delta)
     dash_time = maxf(0.0, dash_time - delta)
+    hit_grace = maxf(0.0, hit_grace - delta)
+    since_last_hit += delta
+    if hp < 100.0 and since_last_hit >= REGEN_WAIT:
+        hp = minf(100.0, hp + REGEN_HP_PER_SECOND * delta)
+        regen_ui_timer += delta
+        if regen_ui_timer >= 0.10 or hp >= 100.0:
+            regen_ui_timer = 0.0
+            _update_health_bar()
     var direction := Vector3.ZERO
     if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
         direction.z -= 1.0
@@ -170,7 +186,12 @@ func dash() -> void:
     dash_time = 0.22
 
 func receive_damage(amount: float) -> void:
-    hp = maxf(0.0, hp - amount)
+    if hit_grace > 0.0 or hp <= 0.0:
+        return
+    hit_grace = HIT_GRACE_SECONDS
+    since_last_hit = 0.0
+    regen_ui_timer = 0.0
+    hp = maxf(0.0, hp - amount * DAMAGE_MULTIPLIER)
     _update_health_bar()
     if hp <= 0.0:
         hp = 100.0
