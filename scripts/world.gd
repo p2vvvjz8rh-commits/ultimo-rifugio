@@ -104,7 +104,7 @@ func _ready() -> void:
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("Esplora la radura. Zombie prima, raccolta del legno poi!", 5.0)
+    show_message("ALFA 13: esplora a EST, trova la radio e premi R per una missione!", 6.0)
 
 func _process(delta: float) -> void:
     if paused:
