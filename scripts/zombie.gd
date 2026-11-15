@@ -76,11 +76,12 @@ func _physics_process(delta: float) -> void:
     var attack_player := false
     var base_target := false
     var player_distance := global_position.distance_to(game.hero.global_position)
-    if player_distance < 4.4 or (not from_wave and game.noise_time > 0.0 and global_position.distance_to(game.noise_position) < 9.0):
+    var hears_noise: bool = not from_wave and game.noise_time > 0.0 and global_position.distance_to(game.noise_position) < 9.0
+    if (player_distance < 4.4 or hears_noise) and game.has_clear_path(global_position, game.hero.global_position):
         target_point = game.hero.global_position
         attack_player = true
     elif from_wave:
-        target_point = game.wall_assault_target(global_position)
+        target_point = game.defense_target(global_position)
         base_target = true
     else:
         # Uno zombie vagante resta nello spazio di esplorazione.
@@ -92,8 +93,8 @@ func _physics_process(delta: float) -> void:
     var range_limit := 1.1 if attack_player else 1.55
     if variant == "brute":
         range_limit += 0.34
-    if base_target and game.stockade_built and not game.gate_broken:
-        range_limit = 1.25 if variant != "brute" else 1.5
+    if base_target and game.stockade_built:
+        range_limit = 0.60 if variant != "brute" else 0.85
     if distance <= range_limit and (attack_player or base_target):
         velocity = Vector3.ZERO
         if distance > 0.05:
@@ -106,7 +107,7 @@ func _physics_process(delta: float) -> void:
             if attack_player:
                 game.hero.receive_damage(9.0 if variant != "brute" else 19.0)
             elif base_target:
-                game.damage_base(10.0 if variant != "brute" else 24.0)
+                game.attack_defense_at(global_position,10.0 if variant != "brute" else 24.0)
         elif attack_animation_time <= 0.0:
             visual.play_clip("Idle", 1.0)
     else:
