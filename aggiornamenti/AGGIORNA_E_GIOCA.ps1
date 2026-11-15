@@ -1,99 +1,143 @@
+# Ultimo Rifugio: aggiornatore Windows. Non modifica salvataggi o Godot portatile.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Log = Join-Path $PSScriptRoot 'log_aggiornamenti.txt'
 $ConfigPath = Join-Path $PSScriptRoot 'config.txt'
-$LocalVersion = Join-Path $PSScriptRoot 'ultimo_commit.txt'
-$Temp = Join-Path $env:TEMP ('UltimoRifugio_Update_' + [Guid]::NewGuid().ToString('N'))
-function Log([string]$s) { $line = ('{0} {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'),$s); Write-Host $s; Add-Content -LiteralPath $Log -Value $line -Encoding UTF8 }
-function LaunchGame {
-  $exe = Join-Path $Root 'build\UltimoRifugio.exe'
-  if (Test-Path -LiteralPath $exe) { Log 'Avvio il gioco gia installato.'; Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe); return }
-  $bat = Join-Path $Root 'AVVIA_O_CREA_GIOCO.bat'
-  if (Test-Path -LiteralPath $bat) { Log 'Avvio la procedura di compilazione iniziale.'; Start-Process -FilePath $bat -WorkingDirectory $Root; return }
-  throw 'Non trovo ne il gioco ne il file AVVIA_O_CREA_GIOCO.bat.'
+$StampPath = Join-Path $PSScriptRoot 'ultimo_commit.txt'
+$GameExe = Join-Path $Root 'build\UltimoRifugio.exe'
+$Work = Join-Path $env:TEMP ('UltimoRifugio_' + [guid]::NewGuid().ToString('N'))
+function Say([string]$Message) {
+    Write-Host $Message
+    Add-Content -LiteralPath $Log -Value ((Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ' + $Message) -Encoding UTF8
 }
-try {
-  Log '=== AGGIORNA E GIOCA - Ultimo Rifugio ==='
-  if (!(Test-Path -LiteralPath $ConfigPath)) { throw 'Manca aggiornamenti\config.txt.' }
-  $config = @{}
-  Get-Content -LiteralPath $ConfigPath | ForEach-Object { if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*$') { $config[$matches[1]] = $matches[2] } }
-  $repo = [string]$config['REPOSITORY']; $branch = [string]$config['BRANCH']
-  if (!$branch) { $branch='main' }
-  if ($repo -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$' -or $repo -eq 'esempio/ultimo-rifugio') {
-    Log 'Manca il repository GitHub: configura REPOSITORY in aggiornamenti\config.txt.'
-    LaunchGame
-    exit 0
-  }
-  if ((Get-Process -Name 'UltimoRifugio' -ErrorAction SilentlyContinue)) {
-    Log 'Chiudi Ultimo Rifugio prima di aggiornare; avvio la copia esistente senza modifiche.'
-    exit 1
-  }
-  $headers = @{ 'User-Agent'='Ultimo-Rifugio-Updater'; 'Accept'='application/vnd.github+json' }
-  $encodedBranch = [Uri]::EscapeDataString($branch)
-  $metaUrl = "https://api.github.com/repos/$repo/commits/$encodedBranch"
-  try {
-    $metadata = Invoke-RestMethod -Uri $metaUrl -Headers $headers -TimeoutSec 35
-    $remote = [string]$metadata.sha
-    if ($remote -notmatch '^[a-fA-F0-9]{40}$') { throw 'Risposta GitHub non valida' }
-  } catch {
-    Log ('Non riesco a raggiungere il repository: ' + $_.Exception.Message)
-    Log 'Il gioco locale non viene modificato.'
-    LaunchGame
-    exit 0
-  }
-  $old = if (Test-Path -LiteralPath $LocalVersion) { (Get-Content -LiteralPath $LocalVersion -Raw).Trim() } else { '' }
-  if ($old -eq $remote) { Log 'Nessun aggiornamento disponibile.'; LaunchGame; exit 0 }
-  Log 'Nuova versione trovata. Scarico soltanto se il repository e configurato correttamente.'
-  New-Item -ItemType Directory -Path $Temp | Out-Null
-  $archive = Join-Path $Temp 'source.zip'
-  $extract = Join-Path $Temp 'estratto'
-  $zipUrl = "https://api.github.com/repos/$repo/zipball/$remote"
-  Invoke-WebRequest -Uri $zipUrl -Headers $headers -OutFile $archive -TimeoutSec 180 -MaximumRedirection 6 | Out-Null
-  Add-Type -AssemblyName System.IO.Compression.FileSystem
-  [System.IO.Compression.ZipFile]::ExtractToDirectory($archive,$extract)
-  $dirs = @(Get-ChildItem -LiteralPath $extract -Directory)
-  if ($dirs.Count -ne 1) { throw 'Archivio GitHub inatteso: nessuna cartella principale univoca.' }
-  $src = $dirs[0].FullName
-  if (!(Test-Path -LiteralPath (Join-Path $src 'project.godot')) -or !(Test-Path -LiteralPath (Join-Path $src 'scripts\world.gd'))) {
-    throw 'Il repository non contiene un progetto Godot valido nella radice. Nessun file del gioco e stato modificato.'
-  }
-  # Backup dei soli file che saranno sostituiti, senza toccare salvataggi e Godot portatile.
-  $backup = Join-Path $Root ('aggiornamenti\backup_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
-  $files = @(Get-ChildItem -LiteralPath $src -Recurse -File | Where-Object {
-    $rel = $_.FullName.Substring($src.Length).TrimStart([char]92,[char]47)
-    $rel -notmatch '^(?i)(\.git[\\/]|\.godot[\\/]|\.godot_portatile[\\/]|build[\\/]|aggiornamenti[\\/]|\.github[\\/])' -and $rel -notmatch '^(?i)(AGGIORNA_E_GIOCA\.bat|AVVIA_O_CREA_GIOCO\.bat)$'
-  })
-  if ($files.Count -eq 0) { throw 'Archivio privo di file aggiornabili.' }
-  New-Item -ItemType Directory -Path $backup -Force | Out-Null
-  foreach ($f in $files) {
-    $rel = $f.FullName.Substring($src.Length).TrimStart([char]92,[char]47)
-    $target = Join-Path $Root $rel
-    if (Test-Path -LiteralPath $target) {
-      $b = Join-Path $backup $rel
-      New-Item -ItemType Directory -Path (Split-Path $b -Parent) -Force | Out-Null
-      Copy-Item -LiteralPath $target -Destination $b -Force
+function Start-Game {
+    if (!(Test-Path -LiteralPath $GameExe)) { throw 'Eseguibile del gioco mancante.' }
+    Say 'Avvio Ultimo Rifugio.'
+    Start-Process -FilePath $GameExe -WorkingDirectory (Join-Path $Root 'build')
+}
+function Build-Game {
+    $Script = Join-Path $Root 'tools\CREA_WINDOWS.ps1'
+    if (!(Test-Path -LiteralPath $Script)) { throw 'Procedura Godot mancante.' }
+    Say 'Compilo la nuova versione. Questa operazione puo richiedere qualche minuto.'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Script
+    $Code = $LASTEXITCODE
+    if ($Code -ne 0 -or !(Test-Path -LiteralPath $GameExe)) {
+        throw "Compilazione non riuscita (codice $Code). Vedi build\log_build.txt."
     }
-  }
-  foreach ($f in $files) {
-    $rel = $f.FullName.Substring($src.Length).TrimStart([char]92,[char]47)
-    $target = Join-Path $Root $rel
-    New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
-    Copy-Item -LiteralPath $f.FullName -Destination $target -Force
-  }
-  # Rebuild all'avvio per le modifiche agli script: un marker forza il BAT esistente a ricompilare.
-  $marker = Join-Path $Root 'build\patch_orientamento_collisioni_applicata.txt'
-  if (Test-Path -LiteralPath $marker) { Remove-Item -LiteralPath $marker -Force }
-  Set-Content -LiteralPath $LocalVersion -Value $remote -Encoding ASCII
-  Log ("Aggiornati {0} file. Backup: {1}" -f $files.Count,$backup)
-  $bat = Join-Path $Root 'AVVIA_O_CREA_GIOCO.bat'
-  if (!(Test-Path -LiteralPath $bat)) { throw 'Manca AVVIA_O_CREA_GIOCO.bat.' }
-  Log 'Avvio la ricompilazione e il gioco.'
-  Start-Process -FilePath $bat -WorkingDirectory $Root
+}
+function Rollback([string]$Backup, [string[]]$Changed, [string[]]$Created) {
+    Say 'Ripristino i file precedenti.'
+    foreach ($Rel in $Created) {
+        $Dest = Join-Path $Root $Rel
+        if (Test-Path -LiteralPath $Dest) { Remove-Item -LiteralPath $Dest -Force -ErrorAction SilentlyContinue }
+    }
+    foreach ($Rel in $Changed) {
+        $Old = Join-Path $Backup ('source\' + $Rel)
+        if (Test-Path -LiteralPath $Old) {
+            $Dest = Join-Path $Root $Rel
+            New-Item -ItemType Directory -Path (Split-Path -Parent $Dest) -Force | Out-Null
+            Copy-Item -LiteralPath $Old -Destination $Dest -Force
+        }
+    }
+    foreach ($Name in @('UltimoRifugio.exe','UltimoRifugio.pck')) {
+        $Old = Join-Path $Backup ('build\' + $Name)
+        if (Test-Path -LiteralPath $Old) { Copy-Item -LiteralPath $Old -Destination (Join-Path $Root ('build\' + $Name)) -Force }
+    }
+}
+$Backup = $null
+$Changed = @()
+$Created = @()
+$Touched = $false
+try {
+    Say '===== ULTIMO RIFUGIO - AGGIORNAMENTO AUTOMATICO ====='
+    if (Get-Process -Name UltimoRifugio -ErrorAction SilentlyContinue) {
+        throw 'Il gioco e ancora aperto. Chiudilo prima di aggiornare.'
+    }
+    if (!(Test-Path -LiteralPath $ConfigPath)) { throw 'Configurazione GitHub mancante.' }
+    $Cfg = @{}
+    Get-Content -LiteralPath $ConfigPath | ForEach-Object {
+        if ($_ -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*$') { $Cfg[$matches[1]] = $matches[2] }
+    }
+    $Repo = [string]$Cfg.REPOSITORY
+    $Branch = [string]$Cfg.BRANCH
+    if (!$Branch) { $Branch = 'main' }
+    if ($Repo -notmatch '^[a-zA-Z0-9_.-]+/[a-zA-Z0-9_.-]+$' -or $Branch -notmatch '^[a-zA-Z0-9._/-]+$') {
+        throw 'Indirizzo del repository o branch non valido.'
+    }
+    $Headers = @{ 'User-Agent'='Ultimo-Rifugio-Launcher'; 'Accept'='application/vnd.github+json' }
+    Say 'Controllo la versione disponibile su GitHub...'
+    try {
+        $Meta = Invoke-RestMethod -Uri ("https://api.github.com/repos/$Repo/commits/" + [uri]::EscapeDataString($Branch)) -Headers $Headers -TimeoutSec 30
+        $Remote = [string]$Meta.sha
+        if ($Remote -notmatch '^[0-9a-fA-F]{40}$') { throw 'Risposta senza versione valida.' }
+    } catch {
+        Say ('GitHub non raggiungibile: ' + $_.Exception.Message)
+        if (Test-Path -LiteralPath $GameExe) { Say 'Uso la versione gia installata.'; Start-Game; exit 0 }
+        throw 'Non c e un gioco installato utilizzabile offline.'
+    }
+    $Installed = if (Test-Path -LiteralPath $StampPath) { (Get-Content -LiteralPath $StampPath -Raw).Trim() } else { '' }
+    if ($Installed -eq $Remote -and (Test-Path -LiteralPath $GameExe)) {
+        Say 'Gioco gia aggiornato.'
+        Start-Game
+        exit 0
+    }
+    Say ('Versione remota: ' + $Remote.Substring(0,10) + '. Scarico l aggiornamento...')
+    New-Item -ItemType Directory -Path $Work -Force | Out-Null
+    $Zip = Join-Path $Work 'progetto.zip'
+    $Extract = Join-Path $Work 'estratto'
+    Invoke-WebRequest -Uri "https://api.github.com/repos/$Repo/zipball/$Remote" -Headers $Headers -OutFile $Zip -TimeoutSec 180 -MaximumRedirection 8 -UseBasicParsing | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($Zip,$Extract)
+    $Top = @(Get-ChildItem -LiteralPath $Extract -Directory)
+    if ($Top.Count -ne 1) { throw 'Formato archivio GitHub inatteso.' }
+    $Source = $Top[0].FullName
+    if (!(Test-Path -LiteralPath (Join-Path $Source 'project.godot')) -or !(Test-Path -LiteralPath (Join-Path $Source 'scripts\world.gd'))) {
+        throw 'Il progetto scaricato non e valido.'
+    }
+    $Files = @(Get-ChildItem -LiteralPath $Source -Recurse -File | Where-Object {
+        $Rel = $_.FullName.Substring($Source.Length).TrimStart([char]92,[char]47)
+        ($Rel -match '^(scripts|scenes|assets|docs|tools)[\\/]') -or
+        ($Rel -match '^(project\.godot|export_presets\.cfg|VERSIONE\.txt)$')
+    })
+    if ($Files.Count -lt 4) { throw 'Sorgenti incompleti: aggiornamento annullato.' }
+    $Backup = Join-Path $PSScriptRoot ('backup_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
+    New-Item -ItemType Directory -Path (Join-Path $Backup 'source') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $Backup 'build') -Force | Out-Null
+    foreach ($Name in @('UltimoRifugio.exe','UltimoRifugio.pck')) {
+        $Original = Join-Path $Root ('build\' + $Name)
+        if (Test-Path -LiteralPath $Original) { Copy-Item -LiteralPath $Original -Destination (Join-Path $Backup ('build\' + $Name)) -Force }
+    }
+    foreach ($File in $Files) {
+        $Rel = $File.FullName.Substring($Source.Length).TrimStart([char]92,[char]47)
+        $Dest = Join-Path $Root $Rel
+        if (Test-Path -LiteralPath $Dest) {
+            $OriginalCopy = Join-Path $Backup ('source\' + $Rel)
+            New-Item -ItemType Directory -Path (Split-Path -Parent $OriginalCopy) -Force | Out-Null
+            Copy-Item -LiteralPath $Dest -Destination $OriginalCopy -Force
+            $Changed += $Rel
+        } else { $Created += $Rel }
+    }
+    $Touched = $true
+    foreach ($File in $Files) {
+        $Rel = $File.FullName.Substring($Source.Length).TrimStart([char]92,[char]47)
+        $Dest = Join-Path $Root $Rel
+        New-Item -ItemType Directory -Path (Split-Path -Parent $Dest) -Force | Out-Null
+        Copy-Item -LiteralPath $File.FullName -Destination $Dest -Force
+    }
+    Say ("Applicati $($Files.Count) file sorgente. Verifico la compilazione...")
+    Build-Game
+    Set-Content -LiteralPath $StampPath -Value $Remote -Encoding ASCII
+    Say 'Aggiornamento completato. I salvataggi non sono stati modificati.'
+    Start-Game
 } catch {
-  Log ('ERRORE: ' + $_.Exception.Message)
-  Log 'Il gioco esistente e i salvataggi rimangono nella cartella. Vedi il log.'
-  exit 1
+    Say ('ERRORE: ' + $_.Exception.Message)
+    if ($Touched -and $Backup) {
+        try { Rollback $Backup $Changed $Created; Say 'Ripristino completato; la vecchia versione resta utilizzabile.' }
+        catch { Say ('ATTENZIONE: ripristino incompleto: ' + $_.Exception.Message) }
+    }
+    Say 'Per assistenza invia aggiornamenti\log_aggiornamenti.txt e build\log_build.txt.'
+    exit 1
 } finally {
-  if (Test-Path -LiteralPath $Temp) { Remove-Item -LiteralPath $Temp -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $Work) { Remove-Item -LiteralPath $Work -Recurse -Force -ErrorAction SilentlyContinue }
 }
