@@ -1,0 +1,20 @@
+ULTIMO RIFUGIO - ALFA 10
+========================
+Novita:
+- Ostacoli semitrasparenti quando coprono il protagonista o uno zombie: singoli pezzi della palizzata, tetto/pareti del rifugio e alberi.
+- Eliminati i vecchi cartelli ! ZOMBIE che coprivano la scena.
+- Terreno visivo piu ampio per nascondere i bordi, nuovi sassi, cespugli, macchie di terra e tronchi.
+- Rifugio con casse, baule e lanterna.
+- Banco di riparazione vicino al rifugio: avvicinati e premi E; costa 8 legno e ripara 42 HP della sezione piu danneggiata o del cancello.
+- Rimane disponibile il ripristino completo con B per 18 legno.
+- Visibili segni di danno sulle sezioni delle mura sotto il 50% di salute.
+- Tipi e comportamenti degli zombie invariati.
+- Salvataggi Alfa 09 mantenuti.
+
+COLLAUDO RICHIESTO
+1. Muovi il protagonista o attendi uno zombie dietro il rifugio, un albero o il muro alto; verifica che soltanto gli ostacoli coprenti diventino semitrasparenti.
+2. Verifica che ritornino opachi quando la visuale e libera.
+3. Avvicinati al banco di riparazione vicino alla casetta: l'etichetta dovrebbe indicare E e il costo.
+4. Accertati che le riparazioni si applichino alla sezione danneggiata, senza diminuire gli HP della casa.
+
+La pubblicazione sorgente e verificata su GitHub. Compilazione e rendering Godot su Windows ancora da verificare sul computer del giocatore.
