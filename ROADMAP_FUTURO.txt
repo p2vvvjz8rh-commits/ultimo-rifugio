@@ -30,3 +30,19 @@ Queste sono idee di sviluppo, NON tutte realizzate ora.
 - Evoluzione graduale, piccoli test giocabili, nessun sistema complicato di fame/sete.
 - Il salvataggio e gli aggiornamenti automatici devono rimanere affidabili.
 - Quando possibile verificare con video reali e non screenshot generati.
+
+6. DECISIONI APPROVATE MA NON IMPLEMENTATE IN ALFA 13
+- Il cancello deve lasciar passare solo il protagonista finche' e' integro, non gli zombie.
+- Sostituire l'attuale estetica dei danni alle costruzioni (l'utente non e' soddisfatto).
+- Banco di riparazione: aggiungere un comando 'ripara tutto'.
+- Poter selezionare con il mouse ogni struttura o singola sezione di palizzata,
+  visualizzare la salute e ripararla direttamente senza usare il banco.
+- Ogni struttura futura deve mantenere salute indipendente, barra visibile
+  se danneggiata, tre stadi di integrita' e crollo a 0 HP.
+- Per ora mantenere gli stessi tipi di zombie; rifinire eventualmente quelli esistenti.
+
+7. ALFA 13 - IMPLEMENTATO NEL PROGETTO
+- Stazione radio abbandonata nel bosco: premi R per attivare una sfida a tempo
+  con zombie gia' disponibili, ricompense, cooldown e progressi salvati.
+- Rifiniture della casetta (tetto, portico e lanterna) e vegetazione del bosco.
+- Nessuna delle quattro modifiche rinviate e' stata inclusa in questa versione.
