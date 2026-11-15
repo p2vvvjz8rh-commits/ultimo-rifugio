@@ -1,1 +1,1 @@
-Ultimo Rifugio - Alfa 09: zoom, HP protagonista, mura indipendenti, indicatori zombie e rumore.
+Ultimo Rifugio - Alfa 10: trasparenza selettiva di alberi, muri e rifugio; ambientazione arricchita; banco di riparazione (E, 8 legno); segni di danno sulle mura. Tipi di zombie invariati.
