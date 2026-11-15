@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 09 - zoom, salute individuale e segnalazione delle minacce.
+## ALFA 10 - visibilita intelligente, dettagli e banco di riparazione.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
@@ -8,6 +8,8 @@ const FIRST_RAID_TIME := 120.0
 const WORLD_HALF := 22.0
 const WALL_HP_MAX := 90.0
 const GATE_HP_MAX := 110.0
+const BENCH_REPAIR_COST := 8
+const BENCH_REPAIR_AMOUNT := 42.0
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -53,6 +55,15 @@ var message_time: float = 0.0
 var save_time: float = 0.0
 var last_mouse_button: bool = false
 var current_gate_open := 0.0
+var occluders: Array[MeshInstance3D] = []
+var occlusion_targets: Dictionary = {}
+var occlusion_alpha: Dictionary = {}
+var occlusion_originals: Dictionary = {}
+var occlusion_materials: Dictionary = {}
+var occlusion_scan_timer: float = 0.0
+var repair_bench: Node3D
+var repair_bench_label: Label3D
+var bench_hint_time: float = 0.0
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -60,6 +71,7 @@ func _ready() -> void:
     _create_ground()
     _create_cabin()
     _create_forest()
+    _decorate_world()
     _create_hero()
     _create_camera()
     _create_hud()
@@ -84,7 +96,8 @@ func _process(delta: float) -> void:
     _update_gate(delta)
     _update_camera(delta)
     _update_hud()
-    _update_enemy_indicators()
+    _update_occlusion(delta)
+    bench_hint_time = maxf(0.0, bench_hint_time - delta)
     noise_spawn_cooldown = maxf(0.0, noise_spawn_cooldown - delta)
     wall_warning_time = maxf(0.0, wall_warning_time - delta)
     enemies = enemies.filter(func(enemy): return is_instance_valid(enemy))
@@ -107,6 +120,9 @@ func _unhandled_input(event: InputEvent) -> void:
             KEY_B:
                 if not paused:
                     _build_or_repair()
+            KEY_E:
+                if not paused:
+                    _use_repair_bench()
             KEY_U:
                 if not paused:
                     _upgrade_weapon()
@@ -213,7 +229,8 @@ func _create_ground() -> void:
     var ground := StaticBody3D.new()
     ground.name = "Terreno"
     add_child(ground)
-    _box(ground, "Prato", Vector3(0, -0.22, 0), Vector3(48, 0.4, 48), "#628657")
+    # Piano visivo piu ampio della zona giocabile: il confine non appare come un precipizio.
+    _box(ground, "Prato", Vector3(0, -0.22, 0), Vector3(108, 0.4, 108), "#628657")
     var collider := CollisionShape3D.new()
     var box_shape := BoxShape3D.new()
     box_shape.size = Vector3(48, 0.4, 48)
@@ -272,6 +289,43 @@ func _create_cabin() -> void:
     flame_light.light_energy = 0.5
     flame_light.omni_range = 6.0
     base.add_child(flame_light)
+    # Oggetti di scena per dare al rifugio un aspetto abitato.
+    for i in range(3):
+        _box(base,"Cassa_rifornimenti_%d" % i,Vector3(-2.8 + float(i%2)*0.8,.38,-.8+float(i/2)*.7),Vector3(.68,.72,.68),"#98734f")
+    _box(base,"Baule_medico",Vector3(2.8,.36,.8),Vector3(1.0,.72,.72),"#7b8166")
+    _box(base,"Etichetta_baule",Vector3(2.8,.76,1.17),Vector3(.42,.07,.03),"#d7ddd1")
+    _cone(base,"Lanterna_palo",Vector3(-2.35,1.10,2.25),.07,2.0,"#574b39",.07)
+    _box(base,"Lanterna",Vector3(-2.35,2.06,2.25),Vector3(.36,.46,.36),"#f4c76f")
+    _box(base,"Lanterna_cappello",Vector3(-2.35,2.34,2.25),Vector3(.45,.12,.45),"#504638")
+    _register_occluders(base)
+
+func _decorate_world() -> void:
+    # Rocce, ciuffi, terra smossa e tronchi statici: nessuna nuova meccanica.
+    for i in range(76):
+        var x: float = rng.randf_range(-48.0,48.0)
+        var z: float = rng.randf_range(-48.0,48.0)
+        if absf(x) < 8.0 and z > -11.0 and z < 8.0:
+            continue
+        if rng.randf() < .42:
+            _rock(self,"Roccia_di_sfondo",Vector3(x,.12,z),Vector3(rng.randf_range(.22,.65),rng.randf_range(.2,.4),rng.randf_range(.22,.70)),"#858d7a")
+        else:
+            var t := _cone(self,"Macchia_bassa",Vector3(x,.15,z),rng.randf_range(.20,.43),rng.randf_range(.27,.50),"#4a7950")
+            t.rotation.z = rng.randf_range(-.3,.3)
+    for i in range(27):
+        var x: float = rng.randf_range(-21.0,21.0)
+        var z: float = rng.randf_range(-21.0,21.0)
+        if absf(x) < 6.8 and z > -10.0 and z < 5.5:
+            continue
+        var patch := _box(self,"Terra_smotata",Vector3(x,-.005,z),Vector3(rng.randf_range(.9,2.5),.024,rng.randf_range(.7,1.8)),"#788360")
+        patch.rotation.y = rng.randf_range(0,TAU)
+    for i in range(8):
+        var x: float = rng.randf_range(-18.0,18.0)
+        var z: float = rng.randf_range(-18.0,18.0)
+        if absf(x) < 7.5 and z > -10.0 and z < 7.0:
+            continue
+        var log_mesh := _cone(self,"Tronco_caduto",Vector3(x,.20,z),.22,1.7,"#78533b",.20)
+        log_mesh.rotation.z = PI * 0.5
+        log_mesh.rotation.y = rng.randf_range(0.0,TAU)
 
 func _create_forest() -> void:
     # Alberi ravvicinati rigenerabili per testare la raccolta; altri intorno alla radura.
@@ -306,6 +360,7 @@ func _create_tree(x: float, z: float, scale_factor: float, harvestable: bool) ->
     var stump := _cone(self,"Ceppo",Vector3(x,.14,z),.30 * scale_factor,.3,"#9e784e", .30 * scale_factor)
     stump.visible = false
     trees.append({"node":tree,"stump":stump,"hp":3,"regrow_at":0.0,"harvestable":harvestable})
+    _register_occluders(tree)
 
 func _create_hero() -> void:
     hero = preload("res://scripts/survivor.gd").new()
@@ -490,9 +545,80 @@ func _build_or_repair() -> void:
         show_message("Palizzata già integra.", 1.7)
     _save_progress()
 
+func _create_repair_bench() -> void:
+    if repair_bench != null and is_instance_valid(repair_bench):
+        repair_bench.queue_free()
+    repair_bench = Node3D.new()
+    repair_bench.name = "Banco_di_riparazione"
+    repair_bench.position = Vector3(-3.65,0.0,1.65)
+    add_child(repair_bench)
+    _box(repair_bench,"Banco_piano",Vector3(0.0,1.02,0.0),Vector3(1.8,.16,.92),"#946840")
+    for x in [-.73,.73]:
+        for z in [-.32,.32]:
+            _box(repair_bench,"Banco_gamba",Vector3(x,.50,z),Vector3(.17,1.0,.17),"#65462c")
+    _box(repair_bench,"Cassetta_attrezzi",Vector3(-.48,1.23,0.0),Vector3(.55,.25,.42),"#54676a")
+    _box(repair_bench,"Martello_impugnatura",Vector3(.31,1.2,0.0),Vector3(.10,.13,.55),"#7f5940")
+    _box(repair_bench,"Martello_testa",Vector3(.31,1.3,-.22),Vector3(.36,.15,.16),"#909593")
+    repair_bench_label = Label3D.new()
+    repair_bench_label.name = "Istruzione_riparazione"
+    repair_bench_label.position = Vector3(0.0,1.95,0.0)
+    repair_bench_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    repair_bench_label.no_depth_test = true
+    repair_bench_label.font_size = 30
+    repair_bench_label.pixel_size = .007
+    repair_bench_label.outline_size = 6
+    repair_bench_label.text = "BANCO RIPARAZIONI"
+    repair_bench.add_child(repair_bench_label)
+    _register_occluders(repair_bench)
+
+func _use_repair_bench() -> void:
+    if not stockade_built or repair_bench == null or not is_instance_valid(repair_bench):
+        show_message("Costruisci prima la palizzata.",1.8)
+        return
+    if hero.global_position.distance_to(repair_bench.global_position) > 2.6:
+        show_message("Avvicinati al banco per riparare con E.",2.0)
+        return
+    var most_damaged: Dictionary = {}
+    var missing: float = 0.0
+    for section in wall_segments:
+        var loss: float = WALL_HP_MAX - float(section["hp"])
+        if loss > missing:
+            missing = loss
+            most_damaged = section
+    var gate_loss: float = GATE_HP_MAX - gate_hp
+    if missing <= 0.0 and gate_loss <= 0.0:
+        show_message("Palizzata e cancello integri.",1.8)
+        return
+    if wood < BENCH_REPAIR_COST:
+        show_message("Per riparare servono %d legno." % BENCH_REPAIR_COST,2.0)
+        return
+    wood -= BENCH_REPAIR_COST
+    if gate_loss > missing:
+        gate_hp = minf(GATE_HP_MAX,gate_hp + BENCH_REPAIR_AMOUNT)
+        gate_broken = gate_hp <= 0.0
+        if is_instance_valid(gate_indicator):
+            gate_indicator.visible = gate_hp < GATE_HP_MAX * 0.5
+            gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
+        show_message("Cancello riparato: +%d salute." % int(BENCH_REPAIR_AMOUNT),2.0)
+    else:
+        var repaired: float = minf(WALL_HP_MAX,float(most_damaged["hp"]) + BENCH_REPAIR_AMOUNT)
+        most_damaged["hp"] = repaired
+        var collider: CollisionShape3D = most_damaged["collider"]
+        collider.set_deferred("disabled",false)
+        for mesh in most_damaged["visuals"]:
+            if is_instance_valid(mesh):
+                mesh.visible = true
+        var indicator: Label3D = most_damaged["indicator"]
+        indicator.visible = repaired < WALL_HP_MAX * .5
+        indicator.text = "MURO %d/%d" % [ceili(repaired),int(WALL_HP_MAX)]
+        show_message("Riparato %s: +%d salute." % [str(most_damaged["name"]),int(BENCH_REPAIR_AMOUNT)],2.0)
+    _save_progress()
+
 func _build_stockade() -> void:
     if fence_root != null and is_instance_valid(fence_root):
         fence_root.queue_free()
+    if repair_bench != null and is_instance_valid(repair_bench):
+        repair_bench.queue_free()
     wall_segments.clear()
     fence_root = Node3D.new()
     fence_root.name = "Palizzata_automatica"
@@ -547,6 +673,8 @@ func _build_stockade() -> void:
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.53,1.03,0.0))
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
+    _create_repair_bench()
+    _register_occluders(fence_root)
 
 func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     var body := StaticBody3D.new()
@@ -790,7 +918,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 09",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 10",13,Color("#e6bb77"))
     top_hud = _label(left_vbox,"VITA 100/100    LEGNO 0    MONETE 0",18,Color("#fff1cf"))
     info_hud = _label(left_vbox,"Rifugio: 150/150",13,Color("#c2d2ba"))
     var objective_panel := PanelContainer.new()
@@ -826,22 +954,7 @@ func _create_hud() -> void:
     special_button.pressed.connect(func(): hero.special_attack())
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
-    enemy_indicator_root = Control.new()
-    enemy_indicator_root.set_anchors_preset(Control.PRESET_FULL_RECT)
-    enemy_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
-    root.add_child(enemy_indicator_root)
-    for i in range(12):
-        var indicator := Label.new()
-        indicator.text = "! ZOMBIE"
-        indicator.add_theme_font_size_override("font_size",16)
-        indicator.add_theme_color_override("font_color",Color("#ff7968"))
-        indicator.add_theme_color_override("font_outline_color",Color("#271518"))
-        indicator.add_theme_constant_override("outline_size",5)
-        indicator.visible = false
-        indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-        enemy_indicator_root.add_child(indicator)
-        enemy_indicators.append(indicator)
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: banco riparazioni   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
@@ -872,32 +985,78 @@ func _update_hud() -> void:
     upgrade_button.disabled = coins < cost or weapon_level >= 4
     special_button.disabled = hero.special_cooldown > 0.0
     dodge_button.disabled = hero.dash_cooldown > 0.0
+    if is_instance_valid(repair_bench_label):
+        var close_to_bench: bool = hero.global_position.distance_to(repair_bench.global_position) < 2.6
+        repair_bench_label.text = "E  RIPARA (%d LEGNO)" % BENCH_REPAIR_COST if close_to_bench else "BANCO RIPARAZIONI"
 
-func _update_enemy_indicators() -> void:
-    if enemy_indicator_root == null:
-        return
-    var counter := 0
-    var view_size: Vector2 = get_viewport().get_visible_rect().size
-    for enemy in enemies:
-        if counter >= enemy_indicators.size():
-            break
-        if not is_instance_valid(enemy) or enemy.defeated:
+func _register_occluders(node: Node) -> void:
+    # Ogni mesh e indipendente: il tetto puo svanire senza cancellare la casa.
+    if node is MeshInstance3D:
+        var mesh: MeshInstance3D = node as MeshInstance3D
+        if mesh.mesh != null and mesh.material_override is StandardMaterial3D:
+            occluders.append(mesh)
+    for child in node.get_children():
+        _register_occluders(child)
+
+func _update_occlusion(delta: float) -> void:
+    # Scansiona a intervalli per non ripetere ogni controllo a ogni frame.
+    occlusion_scan_timer -= delta
+    if occlusion_scan_timer <= 0.0:
+        occlusion_scan_timer = 0.14
+        occlusion_targets.clear()
+        var characters: Array[Vector3] = [hero.global_position + Vector3.UP * 1.15]
+        for enemy in enemies:
+            if is_instance_valid(enemy) and not enemy.defeated:
+                if characters.size() >= 19:
+                    break
+                characters.append(enemy.global_position + Vector3.UP * 1.1)
+        var eye: Vector3 = camera.global_position
+        for mesh in occluders:
+            if not is_instance_valid(mesh) or not mesh.visible:
+                continue
+            var local_eye: Vector3 = mesh.global_transform.affine_inverse() * eye
+            var bounds: AABB = mesh.get_aabb()
+            var id: int = mesh.get_instance_id()
+            for point in characters:
+                if camera.is_position_behind(point):
+                    continue
+                var local_target: Vector3 = mesh.global_transform.affine_inverse() * point
+                var direction: Vector3 = local_target - local_eye
+                # Evita di sbiadire la mesh sulla quale si trova il bersaglio.
+                if direction.length_squared() < .04:
+                    continue
+                if bounds.intersects_segment(local_eye,local_target) != null:
+                    occlusion_targets[id] = true
+                    break
+    # La transizione resta fluida anche tra due scansioni.
+    for mesh in occluders:
+        if not is_instance_valid(mesh):
             continue
-        # Solo gli zombie oltre la parete posteriore, che altrimenti vengono coperti.
-        if enemy.global_position.z > -7.6 or absf(enemy.global_position.x) > 7.5:
-            continue
-        var marker: Label = enemy_indicators[counter]
-        counter += 1
-        var target: Vector3 = enemy.global_position + Vector3(0.0,2.8,0.0)
-        if camera.is_position_behind(target):
-            marker.visible = false
-            continue
-        var screen: Vector2 = camera.unproject_position(target)
-        marker.position = Vector2(clampf(screen.x - 36.0, 12.0, view_size.x-100.0),clampf(screen.y-12.0, 112.0,view_size.y-96.0))
-        marker.text = "! ZOMBIE" if screen.y >= 118.0 else "! ZOMBIE NORD"
-        marker.visible = true
-    for i in range(counter, enemy_indicators.size()):
-        enemy_indicators[i].visible = false
+        var id: int = mesh.get_instance_id()
+        var desired: float = .24 if occlusion_targets.has(id) else 1.0
+        var previous: float = float(occlusion_alpha.get(id,1.0))
+        var current: float = move_toward(previous,desired,delta * 3.6)
+        if current >= .999:
+            if occlusion_originals.has(id):
+                mesh.material_override = occlusion_originals[id]
+                occlusion_originals.erase(id)
+                occlusion_materials.erase(id)
+            occlusion_alpha.erase(id)
+        else:
+            if not occlusion_materials.has(id):
+                var source: StandardMaterial3D = mesh.material_override as StandardMaterial3D
+                if source == null:
+                    continue
+                occlusion_originals[id] = source
+                var transparent: StandardMaterial3D = source.duplicate() as StandardMaterial3D
+                transparent.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+                mesh.material_override = transparent
+                occlusion_materials[id] = transparent
+            var material: StandardMaterial3D = occlusion_materials[id]
+            var tint: Color = material.albedo_color
+            tint.a = current
+            material.albedo_color = tint
+            occlusion_alpha[id] = current
 
 func show_message(message: String, duration: float = 2.5) -> void:
     if notify_hud == null:
