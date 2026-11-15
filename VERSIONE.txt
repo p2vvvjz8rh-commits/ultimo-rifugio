@@ -1,1 +1,1 @@
-Ultimo Rifugio - Alfa 11: nuova partita con backup, casse di scorte e obiettivi, assalti distanziati, mura e cancello robusti, brecce localizzate, passaggio assistito e banco riparazioni corretto.
+Ultimo Rifugio - Alfa 12: salute universale su muri, cancello, rifugio e banco; barre verde/giallo/rosso sotto 100%; danni 3 fasi e crolli; menu riparazioni completo; alberi incisi e caduta; test T/F3.
