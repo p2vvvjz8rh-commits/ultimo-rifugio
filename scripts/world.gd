@@ -101,6 +101,7 @@ func _ready() -> void:
     _spawn_supply_cache()
     _spawn_supply_cache()
     _spawn_supply_cache()
+    _sync_structure_visuals()
     show_message("Esplora la radura. Zombie prima, raccolta del legno poi!", 5.0)
 
 func _process(delta: float) -> void:
@@ -670,7 +671,7 @@ func _create_test_panel(root: Control) -> void:
     test_panel.offset_left = -250
     test_panel.offset_right = -16
     test_panel.offset_top = 132
-    test_panel.offset_bottom = 450
+    test_panel.offset_bottom = 610
     test_panel.add_theme_stylebox_override("panel",_make_panel_style())
     test_panel.visible = false
     root.add_child(test_panel)
@@ -680,16 +681,31 @@ func _create_test_panel(root: Control) -> void:
     var wave := _button(column,"AVVIA ORDA (T)")
     wave.pressed.connect(_test_start_raid)
     var healing := _button(column,"CURA PROTAGONISTA")
-    healing.pressed.connect(func(): hero.hp = 100.0; hero._update_health_bar())
+    healing.pressed.connect(_test_heal_hero)
     var add_wood := _button(column,"+50 LEGNO")
-    add_wood.pressed.connect(func(): wood += 50; _update_hud())
+    add_wood.pressed.connect(_test_add_wood)
     var add_coins := _button(column,"+50 MONETE")
-    add_coins.pressed.connect(func(): coins += 50; _update_hud())
+    add_coins.pressed.connect(_test_add_coins)
     var simulate := _button(column,"SIMULA DANNI")
     simulate.pressed.connect(_test_damage_all)
     var restore := _button(column,"RIPARA TUTTO (TEST)")
     restore.pressed.connect(_test_repair_all)
     test_stats = _label(column,"",12,Color("#e1e0bf"))
+
+func _test_heal_hero() -> void:
+    hero.hp = 100.0
+    hero._update_health_bar()
+    show_message("Salute protagonista ripristinata.",1.4)
+
+func _test_add_wood() -> void:
+    wood += 50
+    _update_hud()
+    show_message("+50 legno per i test.",1.4)
+
+func _test_add_coins() -> void:
+    coins += 50
+    _update_hud()
+    show_message("+50 monete per i test.",1.4)
 
 func _toggle_test_panel() -> void:
     if not is_instance_valid(test_panel):
@@ -811,6 +827,7 @@ func _repair_selected(kind: String) -> void:
         return
     var applied: float = 0.0
     var repaired_name: String = ""
+    var feedback_position: Vector3 = _structure_position(kind)
     match kind:
         "wall":
             var target: Dictionary = {}
@@ -824,6 +841,7 @@ func _repair_selected(kind: String) -> void:
                 applied = minf(damage,BENCH_REPAIR_AMOUNT)
                 target["hp"] = minf(WALL_HP_MAX,float(target["hp"])+applied)
                 repaired_name = str(target["name"])
+                feedback_position = target["position"] + Vector3.UP * 1.7
                 var col: CollisionShape3D = target["collider"]
                 col.set_deferred("disabled",false)
         "gate":
@@ -843,7 +861,7 @@ func _repair_selected(kind: String) -> void:
     if applied > 0.0:
         wood -= cost
         _sync_structure_visuals()
-        _floating_tree_number(_structure_position(kind),"+%d HP" % ceili(applied),true)
+        _floating_tree_number(feedback_position,"+%d HP" % ceili(applied),true)
         show_message("%s riparato: +%d HP" % [repaired_name,ceili(applied)],2.3)
         _save_progress()
     repair_popup.hide()
@@ -887,11 +905,7 @@ func _build_stockade() -> void:
         var z := back_z + float(i)*(front_z-back_z)/22.0
         _post(fence_root, Vector3(left_x,0,z))
         _post(fence_root, Vector3(right_x,0,z))
-    _box(fence_root,"Architrave_1",Vector3(-5.3,1.05,-1.9),Vector3(.22,.26,12),"#674a32")
-    _box(fence_root,"Architrave_2",Vector3(5.3,1.05,-1.9),Vector3(.22,.26,12),"#674a32")
-    _box(fence_root,"Architrave_3",Vector3(0,1.05,-7.9),Vector3(10.8,.26,.22),"#674a32")
-    _box(fence_root,"Architrave_4",Vector3(-3.35,1.05,4.0),Vector3(3.85,.26,.22),"#674a32")
-    _box(fence_root,"Architrave_5",Vector3(3.35,1.05,4.0),Vector3(3.85,.26,.22),"#674a32")
+    # Rinforzi suddivisi per sezione: una breccia non lascia travi sospese.
     _box(fence_root,"Montante_cancello_SX",Vector3(-1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
     _box(fence_root,"Montante_cancello_DX",Vector3(1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
     gate_left = Node3D.new()
@@ -944,10 +958,12 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     var indicator := _create_defense_indicator(body, center + Vector3(0.0, 1.65, 0.0))
     var durability = _make_structure_visual(body,"wall",WALL_HP_MAX,center + Vector3(0.0,1.65,0.0))
     var visuals: Array[MeshInstance3D] = []
+    var rail := _box(fence_root,"Trave_della_sezione_" + title,Vector3(center.x,1.06,center.z),Vector3(size.x,.24,size.z),"#674a32")
     for obj in fence_root.get_children():
         if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
             if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
                 visuals.append(obj)
+    visuals.append(rail)
     # Segno di danno visivo localizzato: compare quando la sezione perde meta salute.
     var crack := _box(fence_root,"Asse_scheggiata_" + title,Vector3(center.x,1.35,center.z + size.z*.5 + .035),Vector3(minf(size.x*.65,1.15),.11,.09),"#4a3123",-.34)
     if size.x < size.z:
@@ -1464,7 +1480,7 @@ func _save_progress() -> void:
     var file := FileAccess.open(path,FileAccess.WRITE)
     if file == null:
         return
-    var data := {"version":8,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
+    var data := {"version":8,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1485,7 +1501,8 @@ func _load_progress() -> void:
     coins = int(parsed.get("coins",0))
     kills = int(parsed.get("kills",0))
     weapon_level = int(parsed.get("weapon_level",1))
-    base_hp = float(parsed.get("base_hp",150.0))
+    base_hp = clampf(float(parsed.get("base_hp",150.0)),0.0,CABIN_HP_MAX)
+    bench_hp = clampf(float(parsed.get("bench_hp",BENCH_HP_MAX)),0.0,BENCH_HP_MAX)
     elapsed = float(parsed.get("elapsed",0.0))
     next_raid = maxf(elapsed + 180.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
     raid_number = int(parsed.get("raid_number",0))
@@ -1517,6 +1534,7 @@ func _load_progress() -> void:
                             mesh.visible = false
                     var collider: CollisionShape3D = wall_segments[i]["collider"]
                     collider.set_deferred("disabled",true)
+    _sync_structure_visuals()
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
 func _exit_tree() -> void:
