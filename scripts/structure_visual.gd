@@ -76,9 +76,17 @@ func _create_marks() -> void:
         _:
             _piece(light_damage,Vector3(0,-.4,.25),Vector3(.1,.65,.1),Color("#513c2d"),.35)
             _piece(heavy_damage,Vector3(.2,-.5,.25),Vector3(.23,.86,.13),Color("#4c2b26"),-.42)
+    var fallen_y: float = -2.63
+    match structure_kind:
+        "cabin":
+            fallen_y = -3.90
+        "gate":
+            fallen_y = -2.87
+        "bench":
+            fallen_y = -2.05
     for index in range(5):
         var x: float = (float(index)-2.0) * .29
-        _piece(rubble,Vector3(x,-1.37 + float(index%2)*.055,.10),Vector3(.42,.13,.31),Color("#866346"),float(index%3)*.23)
+        _piece(rubble,Vector3(x,fallen_y + float(index%2)*.055,.10),Vector3(.42,.13,.31),Color("#866346"),float(index%3)*.23)
 
 func set_health(value: float) -> void:
     hp = clampf(value,0.0,max_hp)
