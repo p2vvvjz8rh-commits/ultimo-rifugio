@@ -1,0 +1,49 @@
+ULTIMO RIFUGIO - ALFA 12
+=========================
+Sistema condiviso per tutte le costruzioni: resistenza individuale, barra della salute
+quando inferiore al 100%, danni visibili e rovine a zero. Riutilizzabile nelle
+strutture che introdurremo in futuro.
+
+STRUTTURE E DANNI
+- Rifugio, cancello, nove tratti della palizzata e banco di riparazione.
+- Al 100% nessuna barra ne danni.
+- Tra 99% e 50% primi segni di danneggiamento, barra verde.
+- Sotto il 50% deformazioni, schegge e parti mancanti; barra gialla o rossa
+  secondo la gravita della perdita.
+- A zero gli elementi della struttura crollano o scompaiono lasciando detriti.
+- La breccia nella palizzata rende attraversabile SOLO il tratto distrutto.
+- Il banco ha salute e puo essere distrutto; con B si possono ripristinare anche
+  il banco e il rifugio, se il banco non puo piu essere utilizzato.
+
+BANCO DI RIPARAZIONE
+- Avvicinati al banco nel cortile e premi E: si apre un menu.
+- Scegli fra mura (sezione piu danneggiata), cancello, rifugio e banco.
+- Si pagano 8 legno per muro, cancello, banco e 12 per rifugio.
+- Sul posto appare l'indicatore temporaneo +HP dopo una riparazione.
+- I danni visivi scompaiono man mano che la salute viene ripristinata.
+
+ALBERI
+- 3 fasi di raccolta: integro, inciso, quasi abbattuto.
+- All'ultimo colpo una breve caduta prima della comparsa del ceppo.
+- Dopo la rigenerazione, l'albero torna senza segni.
+
+MODALITA TEST
+- T: fa partire immediatamente una nuova orda.
+- F3: apre/chiude un pannello con i pulsanti avvia orda, cura protagonista,
+  +50 legno, +50 monete, simula danni e ripara tutto.
+- Puoi simulare danni piu volte fino a 0 HP per verificare tutte le fasi.
+
+COMPATIBILITA
+- Caricamento dei salvataggi precedenti ancora supportato.
+- Lo stato della salute del banco viene salvato.
+- Zoom, trasparenza intelligente, nuova partita e vecchi zombie invariati.
+- Il collegamento AGGIORNA E GIOCA continua a gestire gli aggiornamenti.
+
+DA VERIFICARE IN GODOT WINDOWS
+- Importazione e compilazione del nuovo script structure_visual.gd.
+- Prova delle 3 fasi visive per ciascuna categoria di struttura.
+- Interazione E con menu banco e ripristino della casetta.
+- Tasto T e pannello F3, salvataggi e collisioni.
+
+Questa versione e verificata a livello di sorgenti e pubblicazione GitHub;
+non e ancora collaudata tramite esecuzione del motore Godot qui.
