@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 11 - riparazioni affidabili, assedi bilanciati, esplorazione e nuova partita.
+## ALFA 12 - sistema di salute universale delle strutture, danni visivi e strumenti collaudo.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
@@ -10,6 +10,8 @@ const WALL_HP_MAX := 240.0
 const GATE_HP_MAX := 280.0
 const BENCH_REPAIR_COST := 8
 const BENCH_REPAIR_AMOUNT := 100.0
+const BENCH_HP_MAX := 130.0
+const CABIN_HP_MAX := 150.0
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -73,6 +75,16 @@ var supply_reward_available: bool = false
 var next_cache_spawn: float = 0.0
 var old_wall_scale: float = 1.0
 var old_gate_scale: float = 1.0
+var cabin_root: Node3D
+var cabin_visual
+var cabin_meshes: Array[MeshInstance3D] = []
+var gate_visual
+var bench_visual
+var bench_hp: float = BENCH_HP_MAX
+var repair_popup: PopupPanel
+var test_panel: PanelContainer
+var test_panel_visible: bool = false
+var test_stats: Label
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -109,6 +121,7 @@ func _process(delta: float) -> void:
     _update_gate(delta)
     _update_camera(delta)
     _update_hud()
+    _sync_structure_visuals()
     _update_occlusion(delta)
     bench_hint_time = maxf(0.0, bench_hint_time - delta)
     noise_spawn_cooldown = maxf(0.0, noise_spawn_cooldown - delta)
@@ -136,6 +149,10 @@ func _input(event: InputEvent) -> void:
                 if not paused: _upgrade_weapon()
             KEY_N:
                 if not new_game_dialog.visible: _ask_new_game()
+            KEY_T:
+                if not paused: _test_start_raid()
+            KEY_F3:
+                _toggle_test_panel()
 
 func _unhandled_input(event: InputEvent) -> void:
     # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
@@ -271,6 +288,7 @@ func _create_cabin() -> void:
     base.name = "Rifugio"
     base.position = Vector3(0, 0, -3.6)
     add_child(base)
+    cabin_root = base
     _box(base, "Fondamenta", Vector3(0, 0.14, 0), Vector3(4.8, .28, 4.8), "#676452")
     _box(base, "Pareti", Vector3(0, 1.28, 0), Vector3(3.75, 2.45, 3.75), "#a47d56")
     for z in [-1.90, 1.90]:
@@ -311,6 +329,10 @@ func _create_cabin() -> void:
     _box(base,"Lanterna",Vector3(-2.35,2.06,2.25),Vector3(.36,.46,.36),"#f4c76f")
     _box(base,"Lanterna_cappello",Vector3(-2.35,2.34,2.25),Vector3(.45,.12,.45),"#504638")
     _register_occluders(base)
+    for item in base.get_children():
+        if item is MeshInstance3D and String(item.name) != "Fondamenta":
+            cabin_meshes.append(item as MeshInstance3D)
+    cabin_visual = _make_structure_visual(base,"cabin",CABIN_HP_MAX,Vector3(0.0,4.05,0.0))
 
 func _decorate_world() -> void:
     # Rocce, ciuffi, terra smossa e tronchi statici: nessuna nuova meccanica.
@@ -370,9 +392,13 @@ func _create_tree(x: float, z: float, scale_factor: float, harvestable: bool) ->
     _cone(tree,"Rami_medi",Vector3(0,3.15,0),1.12,1.97,"#377d58")
     _cone(tree,"Rami_alti",Vector3(0,3.96,0),.79,1.66,"#468d60")
     _cone(tree,"Punta",Vector3(0,4.62,0),.49,1.13,"#52986e")
+    var slash1 := _box(tree,"Taglio_1",Vector3(.20,.82,.03),Vector3(.13,.12,.38),"#392b20",-.37)
+    var slash2 := _box(tree,"Taglio_2",Vector3(.21,.67,.03),Vector3(.18,.18,.41),"#4c301d",.32)
+    slash1.visible = false
+    slash2.visible = false
     var stump := _cone(self,"Ceppo",Vector3(x,.14,z),.30 * scale_factor,.3,"#9e784e", .30 * scale_factor)
     stump.visible = false
-    trees.append({"node":tree,"stump":stump,"hp":3,"regrow_at":0.0,"harvestable":harvestable})
+    trees.append({"node":tree,"stump":stump,"hp":3,"regrow_at":0.0,"harvestable":harvestable,"slash1":slash1,"slash2":slash2})
     _register_occluders(tree)
 
 func _create_hero() -> void:
@@ -464,15 +490,23 @@ func chop_tree(t: Dictionary) -> void:
     var tree_pos: Vector3 = t["node"].global_position
     make_noise(tree_pos, 4.0)
     if int(t["hp"]) <= 0:
-        t["node"].visible = false
+        var tree_node: Node3D = t["node"]
         t["stump"].visible = true
         t["regrow_at"] = elapsed + rng.randf_range(32.0, 48.0)
         wood += 9
         _floating_tree_number(tree_pos, "+9 LEGNO", true)
+        var fall := create_tween()
+        fall.tween_property(tree_node,"rotation:z",1.20,0.46)
+        fall.tween_callback(func(): tree_node.visible = false)
         show_message("+9 LEGNO", 1.2)
     else:
-        # Numero di colpi ancora necessari, ad es. 2/3 e 1/3.
-        _floating_tree_number(tree_pos, "%d/3" % int(t["hp"]))
+        var remaining: int = int(t["hp"])
+        var first_cut: MeshInstance3D = t["slash1"]
+        var second_cut: MeshInstance3D = t["slash2"]
+        first_cut.visible = true
+        second_cut.visible = remaining <= 1
+        (t["node"] as Node3D).rotation.z = .10 if remaining <= 1 else .02
+        _floating_tree_number(tree_pos, "%d/3" % remaining)
 
 func _regrow_trees() -> void:
     for t in trees:
@@ -489,6 +523,9 @@ func _regrow_trees() -> void:
         else:
             t["hp"] = 3
             t["node"].visible = true
+            (t["node"] as Node3D).rotation.z = 0.0
+            (t["slash1"] as MeshInstance3D).visible = false
+            (t["slash2"] as MeshInstance3D).visible = false
             t["stump"].visible = false
 
 func make_noise(where: Vector3, duration: float) -> void:
@@ -587,52 +624,115 @@ func _create_repair_bench() -> void:
     repair_bench_label.text = "BANCO RIPARAZIONI"
     repair_bench.add_child(repair_bench_label)
     _register_occluders(repair_bench)
+    bench_visual = _make_structure_visual(repair_bench,"bench",BENCH_HP_MAX,Vector3(0.0,2.18,0.0))
 
 func _use_repair_bench() -> void:
     if not stockade_built or repair_bench == null or not is_instance_valid(repair_bench):
         show_message("Costruisci prima la palizzata.",1.8)
         return
+    if bench_hp <= 0.0:
+        show_message("Banco distrutto: ripristinalo con B.",2.5)
+        return
     if hero.global_position.distance_to(repair_bench.global_position) > 4.4:
-        show_message("Avvicinati al banco, dentro il cortile, poi premi E.",2.0)
+        show_message("Avvicinati al banco nel cortile, poi premi E.",2.0)
         return
-    var most_damaged: Dictionary = {}
-    var missing: float = 0.0
+    _refresh_repair_menu()
+    repair_popup.popup_centered()
+
+func _refresh_repair_menu() -> void:
+    if repair_popup == null:
+        return
+    var body: VBoxContainer = repair_popup.get_node("Menu") as VBoxContainer
+    for child in body.get_children():
+        body.remove_child(child)
+        child.queue_free()
+    var header := Label.new()
+    header.text = "RIPARAZIONI  -  LEGNO DISPONIBILE: %d" % wood
+    body.add_child(header)
+    var descriptions: Array[Dictionary] = [
+        {"type":"wall","label":"Sezione di palizzata piu danneggiata","cost":BENCH_REPAIR_COST,"missing":_max_wall_damage()},
+        {"type":"gate","label":"Cancello","cost":BENCH_REPAIR_COST,"missing":GATE_HP_MAX-gate_hp},
+        {"type":"cabin","label":"Rifugio","cost":12,"missing":CABIN_HP_MAX-base_hp},
+        {"type":"bench","label":"Banco di riparazione","cost":8,"missing":BENCH_HP_MAX-bench_hp}
+    ]
+    for item in descriptions:
+        var option := Button.new()
+        option.text = "%s  |  %d legno  |  Danni: %d HP" % [str(item["label"]),int(item["cost"]),ceili(float(item["missing"]))]
+        option.disabled = float(item["missing"]) <= 0.0 or wood < int(item["cost"])
+        var selected: String = str(item["type"])
+        option.pressed.connect(func(): _repair_selected(selected))
+        body.add_child(option)
+    var close := Button.new()
+    close.text = "Chiudi"
+    close.pressed.connect(func(): repair_popup.hide())
+    body.add_child(close)
+
+func _max_wall_damage() -> float:
+    var lost: float = 0.0
     for section in wall_segments:
-        var loss: float = WALL_HP_MAX - float(section["hp"])
-        if loss > missing:
-            missing = loss
-            most_damaged = section
-    var gate_loss: float = GATE_HP_MAX - gate_hp
-    if missing <= 0.0 and gate_loss <= 0.0:
-        show_message("Palizzata e cancello integri.",1.8)
+        lost = maxf(lost,WALL_HP_MAX-float(section["hp"]))
+    return lost
+
+func _repair_selected(kind: String) -> void:
+    var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
+    if wood < cost or bench_hp <= 0.0:
+        repair_popup.hide()
         return
-    if wood < BENCH_REPAIR_COST:
-        show_message("Per riparare servono %d legno." % BENCH_REPAIR_COST,2.0)
-        return
-    wood -= BENCH_REPAIR_COST
-    if gate_loss > missing:
-        gate_hp = minf(GATE_HP_MAX,gate_hp + BENCH_REPAIR_AMOUNT)
-        gate_broken = gate_hp <= 0.0
-        _sync_gate_collision(current_gate_open > .03)
-        if is_instance_valid(gate_indicator):
-            gate_indicator.visible = gate_hp < GATE_HP_MAX * 0.5
-            gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
-        show_message("Cancello riparato: +%d salute." % int(BENCH_REPAIR_AMOUNT),2.0)
-    else:
-        var repaired: float = minf(WALL_HP_MAX,float(most_damaged["hp"]) + BENCH_REPAIR_AMOUNT)
-        most_damaged["hp"] = repaired
-        var collider: CollisionShape3D = most_damaged["collider"]
-        collider.set_deferred("disabled",false)
-        for mesh in most_damaged["visuals"]:
-            if is_instance_valid(mesh):
-                mesh.visible = true
-        var indicator: Label3D = most_damaged["indicator"]
-        indicator.visible = repaired < WALL_HP_MAX * .5
-        var crack: MeshInstance3D = most_damaged["crack"]
-        crack.visible = repaired < WALL_HP_MAX * .5
-        indicator.text = "MURO %d/%d" % [ceili(repaired),int(WALL_HP_MAX)]
-        show_message("Riparato %s: +%d salute." % [str(most_damaged["name"]),int(BENCH_REPAIR_AMOUNT)],2.0)
-    _save_progress()
+    var applied: float = 0.0
+    var repaired_name: String = ""
+    match kind:
+        "wall":
+            var target: Dictionary = {}
+            var damage: float = 0.0
+            for section in wall_segments:
+                var missing: float = WALL_HP_MAX - float(section["hp"])
+                if missing > damage:
+                    damage = missing
+                    target = section
+            if damage > 0.0:
+                applied = minf(damage,BENCH_REPAIR_AMOUNT)
+                target["hp"] = minf(WALL_HP_MAX,float(target["hp"])+applied)
+                repaired_name = str(target["name"])
+                var col: CollisionShape3D = target["collider"]
+                col.set_deferred("disabled",false)
+        "gate":
+            applied = minf(GATE_HP_MAX-gate_hp,BENCH_REPAIR_AMOUNT)
+            gate_hp += applied
+            gate_broken = gate_hp <= 0.0
+            repaired_name = "Cancello"
+            _sync_gate_collision(current_gate_open > .03)
+        "cabin":
+            applied = minf(CABIN_HP_MAX-base_hp,75.0)
+            base_hp += applied
+            repaired_name = "Rifugio"
+        "bench":
+            applied = minf(BENCH_HP_MAX-bench_hp,65.0)
+            bench_hp += applied
+            repaired_name = "Banco di riparazione"
+    if applied > 0.0:
+        wood -= cost
+        _sync_structure_visuals()
+        _floating_tree_number(_structure_position(kind),"+%d HP" % ceili(applied),true)
+        show_message("%s riparato: +%d HP" % [repaired_name,ceili(applied)],2.3)
+        _save_progress()
+    repair_popup.hide()
+
+func _structure_position(kind: String) -> Vector3:
+    match kind:
+        "wall":
+            var most: float = -1.0
+            var place: Vector3 = Vector3(0.0,1.7,-7.9)
+            for section in wall_segments:
+                var damage: float = WALL_HP_MAX - float(section["hp"])
+                if damage > most:
+                    most = damage
+                    place = section["position"] + Vector3.UP * 1.7
+            return place
+        "gate":
+            return Vector3(0.0,2.0,4.0)
+        "bench":
+            return repair_bench.global_position + Vector3.UP * 1.5
+    return Vector3(0.0,3.0,-3.6)
 
 func _build_stockade() -> void:
     if fence_root != null and is_instance_valid(fence_root):
@@ -693,6 +793,7 @@ func _build_stockade() -> void:
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.72,1.03,0.0))
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
+    gate_visual = _make_structure_visual(fence_root,"gate",GATE_HP_MAX,Vector3(0.0,3.0,4.0))
     _create_repair_bench()
     _register_occluders(fence_root)
 
@@ -710,6 +811,7 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     collider.position = center
     body.add_child(collider)
     var indicator := _create_defense_indicator(body, center + Vector3(0.0, 1.65, 0.0))
+    var durability = _make_structure_visual(body,"wall",WALL_HP_MAX,center + Vector3(0.0,1.65,0.0))
     var visuals: Array[MeshInstance3D] = []
     for obj in fence_root.get_children():
         if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
@@ -724,7 +826,7 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
         var damage_box: BoxMesh = crack.mesh as BoxMesh
         damage_box.size = Vector3(.09,.11,minf(size.z*.65,1.15))
     crack.visible = false
-    wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals,"crack":crack})
+    wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals,"crack":crack,"durability":durability})
 
 func _create_defense_indicator(parent: Node3D, position_3d: Vector3) -> Label3D:
     var indicator := Label3D.new()
@@ -972,7 +1074,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 11",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 12",13,Color("#e6bb77"))
     var start_over := Button.new()
     start_over.text = "NUOVA PARTITA"
     start_over.custom_minimum_size = Vector2(150,28)
@@ -984,6 +1086,14 @@ func _create_hud() -> void:
     new_game_dialog.ok_button_text = "Nuova partita"
     new_game_dialog.confirmed.connect(_start_new_game)
     root.add_child(new_game_dialog)
+    repair_popup = PopupPanel.new()
+    repair_popup.name = "Menu_riparazioni"
+    repair_popup.size = Vector2i(440,310)
+    root.add_child(repair_popup)
+    var repair_list := VBoxContainer.new()
+    repair_list.name = "Menu"
+    repair_list.custom_minimum_size = Vector2(420,270)
+    repair_popup.add_child(repair_list)
     top_hud = _label(left_vbox,"VITA 100/100    LEGNO 0    MONETE 0",18,Color("#fff1cf"))
     info_hud = _label(left_vbox,"Rifugio: 150/150",13,Color("#c2d2ba"))
     var objective_panel := PanelContainer.new()
@@ -1019,6 +1129,7 @@ func _create_hud() -> void:
     special_button.pressed.connect(func(): hero.special_attack())
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
+    _create_test_panel(root)
     var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
@@ -1052,7 +1163,10 @@ func _update_hud() -> void:
     dodge_button.disabled = hero.dash_cooldown > 0.0
     if is_instance_valid(repair_bench_label):
         var close_to_bench: bool = hero.global_position.distance_to(repair_bench.global_position) < 4.4
-        repair_bench_label.text = "PREMI E - RIPARA (%d LEGNO)" % BENCH_REPAIR_COST if close_to_bench else "BANCO RIPARAZIONI"
+        if bench_hp <= 0.0:
+            repair_bench_label.text = "BANCO DISTRUTTO (B)"
+        else:
+            repair_bench_label.text = "PREMI E - RIPARAZIONI" if close_to_bench else "BANCO RIPARAZIONI"
 
 func _register_occluders(node: Node) -> void:
     # Ogni mesh e indipendente: il tetto puo svanire senza cancellare la casa.
