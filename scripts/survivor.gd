@@ -13,6 +13,8 @@ var dash_time: float = 0.0
 var last_direction := Vector3(0.0, 0.0, -1.0)
 var mouse_destination: Vector3
 var mouse_has_destination := false
+var health_sprite: Sprite3D
+var health_text: Label3D
 
 func configure(parent_game: Node3D) -> void:
     game = parent_game
@@ -31,6 +33,46 @@ func configure(parent_game: Node3D) -> void:
     add_child(visual)
     visual.setup("res://assets/Characters_Shaun.gltf", 1.0)
     mouse_destination = global_position
+    _create_health_bar()
+
+func _create_health_bar() -> void:
+    health_sprite = Sprite3D.new()
+    health_sprite.name = "Barra_vita_sopra_protagonista"
+    health_sprite.position = Vector3(0.0,2.55,0.0)
+    health_sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    health_sprite.no_depth_test = true
+    health_sprite.shaded = false
+    health_sprite.pixel_size = 0.008
+    add_child(health_sprite)
+    health_text = Label3D.new()
+    health_text.name = "Vita_numerica"
+    health_text.position = Vector3(0.0,2.84,0.0)
+    health_text.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    health_text.no_depth_test = true
+    health_text.font_size = 30
+    health_text.pixel_size = 0.006
+    health_text.outline_size = 6
+    health_text.modulate = Color("#ffffff")
+    health_text.outline_modulate = Color("#132019")
+    add_child(health_text)
+    _update_health_bar()
+
+func _update_health_bar() -> void:
+    if health_sprite == null:
+        return
+    health_sprite.visible = hp < 99.99
+    health_text.visible = health_sprite.visible
+    health_text.text = "%d/100" % ceili(hp)
+    if not health_sprite.visible:
+        return
+    var img := Image.create(152,26,false,Image.FORMAT_RGBA8)
+    img.fill(Color("#17211ce9"))
+    img.fill_rect(Rect2i(3,3,146,20),Color("#331e1e"))
+    var width: int = clampi(roundi(146.0 * hp / 100.0),0,146)
+    if width > 0:
+        var fill_color: Color = Color("#ee4444") if hp <= 25.0 else (Color("#f2a13d") if hp <= 50.0 else Color("#58d978"))
+        img.fill_rect(Rect2i(3,3,width,20),fill_color)
+    health_sprite.texture = ImageTexture.create_from_image(img)
 
 func set_mouse_destination(point: Vector3) -> void:
     mouse_has_destination = true
@@ -129,8 +171,10 @@ func dash() -> void:
 
 func receive_damage(amount: float) -> void:
     hp = maxf(0.0, hp - amount)
+    _update_health_bar()
     if hp <= 0.0:
         hp = 100.0
+        _update_health_bar()
         global_position = Vector3(0, 0.16, 6.7)
         game.coins = maxi(0, int(game.coins * 0.8))
         game.show_message("Sei tornato al rifugio. Hai perso il 20% delle monete.", 3.0)
