@@ -1,4 +1,3 @@
-# Indirizzo del repository GitHub dedicato al gioco: proprietario/nome
-# Esempio: esempio/ultimo-rifugio
-REPOSITORY=
+# Repository GitHub pubblico per gli aggiornamenti di Ultimo Rifugio
+REPOSITORY=p2vvvjz8rh-commits/ultimo-rifugio
 BRANCH=main
