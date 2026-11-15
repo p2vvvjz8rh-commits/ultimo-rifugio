@@ -1,15 +1,15 @@
 extends Node3D
-## ALFA 10 - visibilita intelligente, dettagli e banco di riparazione.
+## ALFA 11 - riparazioni affidabili, assedi bilanciati, esplorazione e nuova partita.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
 const REPAIR_COST := 18
-const FIRST_RAID_TIME := 120.0
+const FIRST_RAID_TIME := 240.0
 const WORLD_HALF := 22.0
-const WALL_HP_MAX := 90.0
-const GATE_HP_MAX := 110.0
+const WALL_HP_MAX := 240.0
+const GATE_HP_MAX := 280.0
 const BENCH_REPAIR_COST := 8
-const BENCH_REPAIR_AMOUNT := 42.0
+const BENCH_REPAIR_AMOUNT := 100.0
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -64,6 +64,15 @@ var occlusion_scan_timer: float = 0.0
 var repair_bench: Node3D
 var repair_bench_label: Label3D
 var bench_hint_time: float = 0.0
+var new_game_dialog: ConfirmationDialog
+var skip_save_on_exit: bool = false
+var supply_caches: Array[Dictionary] = []
+var collected_supplies: int = 0
+var supply_goal: int = 4
+var supply_reward_available: bool = false
+var next_cache_spawn: float = 0.0
+var old_wall_scale: float = 1.0
+var old_gate_scale: float = 1.0
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -77,6 +86,9 @@ func _ready() -> void:
     _create_hud()
     _load_progress()
     _spawn_initial_enemies()
+    _spawn_supply_cache()
+    _spawn_supply_cache()
+    _spawn_supply_cache()
     show_message("Esplora la radura. Zombie prima, raccolta del legno poi!", 5.0)
 
 func _process(delta: float) -> void:
@@ -93,6 +105,7 @@ func _process(delta: float) -> void:
     if elapsed >= next_raid:
         _start_raid()
     _regrow_trees()
+    _update_supply_caches(delta)
     _update_gate(delta)
     _update_camera(delta)
     _update_hud()
@@ -105,27 +118,27 @@ func _process(delta: float) -> void:
         save_time = 0.0
         _save_progress()
 
-func _unhandled_input(event: InputEvent) -> void:
+func _input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
         match event.keycode:
             KEY_ESCAPE:
                 paused = not paused
-                show_message("IN PAUSA - premi ESC per riprendere" if paused else "Esplorazione ripresa", 2.5)
+                show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
             KEY_Q:
-                if not paused:
-                    hero.special_attack()
+                if not paused: hero.special_attack()
             KEY_SPACE:
-                if not paused:
-                    hero.dash()
+                if not paused: hero.dash()
             KEY_B:
-                if not paused:
-                    _build_or_repair()
+                if not paused: _build_or_repair()
             KEY_E:
-                if not paused:
-                    _use_repair_bench()
+                if not paused: _use_repair_bench()
             KEY_U:
-                if not paused:
-                    _upgrade_weapon()
+                if not paused: _upgrade_weapon()
+            KEY_N:
+                if not new_game_dialog.visible: _ask_new_game()
+
+func _unhandled_input(event: InputEvent) -> void:
+    # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
     if event is InputEventMouseButton and event.pressed and not paused:
         if event.button_index == MOUSE_BUTTON_WHEEL_UP:
             camera_distance = maxf(0.62, camera_distance - 0.10)
@@ -500,16 +513,18 @@ func make_noise(where: Vector3, duration: float) -> void:
 
 func _start_raid() -> void:
     raid_number += 1
-    var count := mini(11, 3 + raid_number * 2)
+    var count: int = mini(9, 2 + raid_number * 2)
     for i in range(count):
         var a := float(i) * TAU / float(count) + rng.randf_range(-.15,.15)
         var radius := rng.randf_range(13.0, 17.0)
         var variant := "runner" if i % 4 == 0 and raid_number >= 2 else "normal"
         _spawn_enemy(Vector3(cos(a) * radius, .13, sin(a) * radius), variant, true)
-    if raid_number >= 2:
+    if raid_number >= 4:
         _spawn_enemy(Vector3(15.5, .13, 2.0), "brute", true)
-    next_raid = elapsed + maxf(162.0, 181.0 - float(raid_number) * 4.0)
-    show_message("⚠ ORDA %d — RIENTRA AL RIFUGIO!" % raid_number, 5.0)
+    next_raid = elapsed + maxf(250.0, 340.0 - float(raid_number) * 9.0)
+    wood += 8
+    coins += 5
+    show_message("ORDA %d - +8 LEGNO E +5 MONETE PER PREPARARTI!" % raid_number, 5.0)
 
 func _build_or_repair() -> void:
     if not stockade_built:
@@ -552,7 +567,7 @@ func _create_repair_bench() -> void:
         repair_bench.queue_free()
     repair_bench = Node3D.new()
     repair_bench.name = "Banco_di_riparazione"
-    repair_bench.position = Vector3(-3.65,0.0,1.65)
+    repair_bench.position = Vector3(-2.75,0.0,2.25)
     add_child(repair_bench)
     _box(repair_bench,"Banco_piano",Vector3(0.0,1.02,0.0),Vector3(1.8,.16,.92),"#946840")
     for x in [-.73,.73]:
@@ -577,8 +592,8 @@ func _use_repair_bench() -> void:
     if not stockade_built or repair_bench == null or not is_instance_valid(repair_bench):
         show_message("Costruisci prima la palizzata.",1.8)
         return
-    if hero.global_position.distance_to(repair_bench.global_position) > 2.6:
-        show_message("Avvicinati al banco per riparare con E.",2.0)
+    if hero.global_position.distance_to(repair_bench.global_position) > 4.4:
+        show_message("Avvicinati al banco, dentro il cortile, poi premi E.",2.0)
         return
     var most_damaged: Dictionary = {}
     var missing: float = 0.0
@@ -598,6 +613,7 @@ func _use_repair_bench() -> void:
     if gate_loss > missing:
         gate_hp = minf(GATE_HP_MAX,gate_hp + BENCH_REPAIR_AMOUNT)
         gate_broken = gate_hp <= 0.0
+        _sync_gate_collision(current_gate_open > .03)
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = gate_hp < GATE_HP_MAX * 0.5
             gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
@@ -634,7 +650,7 @@ func _build_stockade() -> void:
     for i in range(22):
         var x := left_x + float(i) * (right_x-left_x) / 21.0
         _post(fence_root, Vector3(x,0,back_z))
-        if absf(x) > 1.12:
+        if absf(x) > 1.55:
             _post(fence_root, Vector3(x,0,front_z))
     for i in range(23):
         var z := back_z + float(i)*(front_z-back_z)/22.0
@@ -643,22 +659,22 @@ func _build_stockade() -> void:
     _box(fence_root,"Architrave_1",Vector3(-5.3,1.05,-1.9),Vector3(.22,.26,12),"#674a32")
     _box(fence_root,"Architrave_2",Vector3(5.3,1.05,-1.9),Vector3(.22,.26,12),"#674a32")
     _box(fence_root,"Architrave_3",Vector3(0,1.05,-7.9),Vector3(10.8,.26,.22),"#674a32")
-    _box(fence_root,"Architrave_4",Vector3(-3.17,1.05,4.0),Vector3(4.25,.26,.22),"#674a32")
-    _box(fence_root,"Architrave_5",Vector3(3.17,1.05,4.0),Vector3(4.25,.26,.22),"#674a32")
-    _box(fence_root,"Montante_cancello_SX",Vector3(-1.17,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
-    _box(fence_root,"Montante_cancello_DX",Vector3(1.17,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
+    _box(fence_root,"Architrave_4",Vector3(-3.35,1.05,4.0),Vector3(3.85,.26,.22),"#674a32")
+    _box(fence_root,"Architrave_5",Vector3(3.35,1.05,4.0),Vector3(3.85,.26,.22),"#674a32")
+    _box(fence_root,"Montante_cancello_SX",Vector3(-1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
+    _box(fence_root,"Montante_cancello_DX",Vector3(1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
     gate_left = Node3D.new()
     gate_left.name = "Anta_SX"
-    gate_left.position = Vector3(-1.08, 0.0, 4.0)
+    gate_left.position = Vector3(-1.44, 0.0, 4.0)
     fence_root.add_child(gate_left)
-    _box(gate_left,"Legno_anta",Vector3(.53,1.03,0),Vector3(1.07,2.08,.22),"#997048")
-    _box(gate_left,"Rinforzo",Vector3(.53,.75,.15),Vector3(1.07,.16,.12),"#533b29")
+    _box(gate_left,"Legno_anta",Vector3(.72,1.03,0),Vector3(1.44,2.08,.22),"#997048")
+    _box(gate_left,"Rinforzo",Vector3(.72,.75,.15),Vector3(1.44,.16,.12),"#533b29")
     gate_right = Node3D.new()
     gate_right.name = "Anta_DX"
-    gate_right.position = Vector3(1.08, 0.0, 4.0)
+    gate_right.position = Vector3(1.44, 0.0, 4.0)
     fence_root.add_child(gate_right)
-    _box(gate_right,"Legno_anta",Vector3(-.53,1.03,0),Vector3(1.07,2.08,.22),"#997048")
-    _box(gate_right,"Rinforzo",Vector3(-.53,.75,.15),Vector3(1.07,.16,.12),"#533b29")
+    _box(gate_right,"Legno_anta",Vector3(-.72,1.03,0),Vector3(1.44,2.08,.22),"#997048")
+    _box(gate_right,"Rinforzo",Vector3(-.72,.75,.15),Vector3(1.44,.16,.12),"#533b29")
     for x in [-5.3, 5.3]:
         for z in [back_z, front_z]:
             _cone(fence_root,"Palo_angolare",Vector3(x,1.75,z),.37,3.5,"#7f5838",.17)
@@ -670,11 +686,11 @@ func _build_stockade() -> void:
         var z_center: float = -4.925 + float(i) * 5.95
         _wall_collision("Parete_ovest_%d" % (i+1),Vector3(left_x,1.12,z_center),Vector3(.50,2.24,5.95))
         _wall_collision("Parete_est_%d" % (i+1),Vector3(right_x,1.12,z_center),Vector3(.50,2.24,5.95))
-    _wall_collision("Parete_frontale_sinistra", Vector3(-3.19,1.12,front_z), Vector3(4.32,2.24,.50))
-    _wall_collision("Parete_frontale_destra", Vector3(3.19,1.12,front_z), Vector3(4.32,2.24,.50))
+    _wall_collision("Parete_frontale_sinistra", Vector3(-3.4,1.12,front_z), Vector3(3.8,2.24,.50))
+    _wall_collision("Parete_frontale_destra", Vector3(3.4,1.12,front_z), Vector3(3.8,2.24,.50))
     # Anche le ante hanno collider, legati allo stesso nodo che ruota.
-    gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.53,1.03,0.0))
-    gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.53,1.03,0.0))
+    gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.72,1.03,0.0))
+    gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.72,1.03,0.0))
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
     _create_repair_bench()
@@ -757,7 +773,7 @@ func defense_target(from_position: Vector3) -> Vector3:
         return Vector3(0.0,0.0,-3.6)
     if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
         return Vector3(0.0,0.0,-3.6)
-    if from_position.z > 4.0 and absf(from_position.x) < 1.1 and not gate_broken:
+    if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
         return Vector3(0.0,0.0,5.05)
     var index := _nearest_wall_section(from_position)
     if index == -1:
@@ -779,8 +795,8 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
     if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
         damage_base(damage)
         return
-    if from_position.z > 4.0 and absf(from_position.x) < 1.1 and not gate_broken:
-        gate_hp = maxf(0.0,gate_hp-damage)
+    if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
+        gate_hp = maxf(0.0,gate_hp-damage * .60)
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
             gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
@@ -794,7 +810,9 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
         damage_base(damage)
         return
     var section: Dictionary = wall_segments[index]
-    section["hp"] = maxf(0.0, float(section["hp"]) - damage)
+    if float(section["hp"]) <= 0.0:
+        return
+    section["hp"] = maxf(0.0, float(section["hp"]) - damage * .60)
     var hp: float = float(section["hp"])
     var indicator: Label3D = section["indicator"]
     indicator.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
@@ -824,7 +842,7 @@ func _gate_collision(leaf: Node3D, title: String, offset: Vector3) -> CollisionS
     leaf.add_child(body)
     var collider := CollisionShape3D.new()
     var shape := BoxShape3D.new()
-    shape.size = Vector3(1.07,2.07,.23)
+    shape.size = Vector3(1.44,2.07,.23)
     collider.shape = shape
     collider.position = offset
     body.add_child(collider)
@@ -866,7 +884,7 @@ func _post(parent: Node3D, pos: Vector3) -> void:
 func _update_gate(delta: float) -> void:
     if not stockade_built or gate_left == null or gate_right == null:
         return
-    var open_target := 1.0 if hero.global_position.distance_to(Vector3(0,0,4.1)) < 3.0 else 0.0
+    var open_target := 1.0 if hero.global_position.distance_to(Vector3(0,0,4.1)) < 4.6 else 0.0
     current_gate_open = move_toward(current_gate_open,open_target,delta*1.65)
     gate_left.rotation.y = current_gate_open * -1.35
     gate_right.rotation.y = current_gate_open * 1.35
@@ -928,12 +946,23 @@ func _create_hud() -> void:
     layer.add_child(root)
     var left := PanelContainer.new()
     left.position = Vector2(18,18)
-    left.custom_minimum_size = Vector2(250,126)
+    left.custom_minimum_size = Vector2(250,152)
     left.add_theme_stylebox_override("panel",_make_panel_style())
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 10",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 11",13,Color("#e6bb77"))
+    var start_over := Button.new()
+    start_over.text = "NUOVA PARTITA"
+    start_over.custom_minimum_size = Vector2(150,28)
+    start_over.pressed.connect(_ask_new_game)
+    left_vbox.add_child(start_over)
+    new_game_dialog = ConfirmationDialog.new()
+    new_game_dialog.title = "Inizia una nuova partita?"
+    new_game_dialog.dialog_text = "La partita attuale verra conservata come backup. Vuoi ricominciare da zero?"
+    new_game_dialog.ok_button_text = "Nuova partita"
+    new_game_dialog.confirmed.connect(_start_new_game)
+    root.add_child(new_game_dialog)
     top_hud = _label(left_vbox,"VITA 100/100    LEGNO 0    MONETE 0",18,Color("#fff1cf"))
     info_hud = _label(left_vbox,"Rifugio: 150/150",13,Color("#c2d2ba"))
     var objective_panel := PanelContainer.new()
@@ -969,7 +998,7 @@ func _create_hud() -> void:
     special_button.pressed.connect(func(): hero.special_attack())
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: banco riparazioni   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
@@ -988,7 +1017,7 @@ func _update_hud() -> void:
     top_hud.text = "LEGNO %d    MONETE %d   |   ZOOM: %d%%" % [wood,coins,roundi(100.0/camera_distance)]
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
-    objective_hud.text = "Esplora e costruisci   ·   ORDA IN %d:%02d" % [int(remain / 60), remain % 60]
+    objective_hud.text = "SCORTE %d/%d   |   ORDA IN %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
     if not stockade_built:
         build_button.text = "RECINTO · %d LEGNO" % FENCE_COST
         build_button.disabled = wood < FENCE_COST
@@ -1001,8 +1030,8 @@ func _update_hud() -> void:
     special_button.disabled = hero.special_cooldown > 0.0
     dodge_button.disabled = hero.dash_cooldown > 0.0
     if is_instance_valid(repair_bench_label):
-        var close_to_bench: bool = hero.global_position.distance_to(repair_bench.global_position) < 2.6
-        repair_bench_label.text = "E  RIPARA (%d LEGNO)" % BENCH_REPAIR_COST if close_to_bench else "BANCO RIPARAZIONI"
+        var close_to_bench: bool = hero.global_position.distance_to(repair_bench.global_position) < 4.4
+        repair_bench_label.text = "PREMI E - RIPARA (%d LEGNO)" % BENCH_REPAIR_COST if close_to_bench else "BANCO RIPARAZIONI"
 
 func _register_occluders(node: Node) -> void:
     # Ogni mesh e indipendente: il tetto puo svanire senza cancellare la casa.
@@ -1079,6 +1108,73 @@ func show_message(message: String, duration: float = 2.5) -> void:
     notify_hud.text = message
     message_time = duration
 
+func _ask_new_game() -> void:
+    if is_instance_valid(new_game_dialog):
+        new_game_dialog.popup_centered()
+
+func _start_new_game() -> void:
+    var current: String = _save_directory().path_join("partita.json")
+    if FileAccess.file_exists(current):
+        var backup: String = _save_directory().path_join("partita_backup_%s.json" % Time.get_datetime_string_from_system().replace(":","-"))
+        var status: Error = DirAccess.rename_absolute(current,backup)
+        if status != OK:
+            show_message("Impossibile creare backup della partita. Operazione annullata.",3.0)
+            return
+    skip_save_on_exit = true
+    get_tree().reload_current_scene()
+
+func _spawn_supply_cache() -> void:
+    if supply_caches.size() >= 5:
+        return
+    var place: Vector3 = Vector3.ZERO
+    for attempt in range(30):
+        place = Vector3(rng.randf_range(-18.0,18.0),0.0,rng.randf_range(-18.0,18.0))
+        if place.distance_to(hero.global_position) < 6.0:
+            continue
+        if absf(place.x) < 6.0 and place.z > -9.0 and place.z < 6.0:
+            continue
+        break
+    var cache := Node3D.new()
+    cache.name = "Cassa_scorte"
+    cache.position = place
+    add_child(cache)
+    _box(cache,"Cassa",Vector3(0,.33,0),Vector3(.75,.66,.64),"#ad844d")
+    _box(cache,"Fascia",Vector3(0,.39,0),Vector3(.79,.12,.68),"#e2bd69")
+    var label := Label3D.new()
+    label.text = "SCORTE"
+    label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    label.no_depth_test = true
+    label.position = Vector3(0,1.15,0)
+    label.font_size = 30
+    label.pixel_size = .006
+    cache.add_child(label)
+    supply_caches.append({"node":cache})
+
+func _update_supply_caches(delta: float) -> void:
+    for entry in supply_caches.duplicate():
+        var obj: Node3D = entry["node"]
+        if not is_instance_valid(obj):
+            supply_caches.erase(entry)
+            continue
+        if hero.global_position.distance_to(obj.global_position) < 1.35:
+            wood += 12
+            coins += 9
+            collected_supplies += 1
+            show_message("SCORTE RECUPERATE: +12 legno, +9 monete",2.6)
+            supply_caches.erase(entry)
+            obj.queue_free()
+            next_cache_spawn = maxf(next_cache_spawn,elapsed + 18.0)
+            if collected_supplies >= supply_goal:
+                collected_supplies = 0
+                supply_goal += 2
+                wood += 25
+                coins += 18
+                show_message("OBIETTIVO SCORTE COMPLETATO! +25 LEGNO +18 MONETE",4.0)
+                _save_progress()
+    if elapsed >= next_cache_spawn and supply_caches.size() < 3:
+        _spawn_supply_cache()
+        next_cache_spawn = elapsed + 26.0
+
 func _save_directory() -> String:
     if OS.has_feature("standalone"):
         return OS.get_executable_path().get_base_dir().path_join("salvataggi")
@@ -1099,7 +1195,7 @@ func _save_progress() -> void:
     var file := FileAccess.open(path,FileAccess.WRITE)
     if file == null:
         return
-    var data := {"version":8,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"gate_hp":gate_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
+    var data := {"version":8,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1114,6 +1210,8 @@ func _load_progress() -> void:
     file.close()
     if typeof(parsed) != TYPE_DICTIONARY or int(parsed.get("version",0)) != 8:
         return
+    collected_supplies = int(parsed.get("collected_supplies",0))
+    supply_goal = int(parsed.get("supply_goal",4))
     wood = int(parsed.get("wood",0))
     coins = int(parsed.get("coins",0))
     kills = int(parsed.get("kills",0))
@@ -1130,14 +1228,14 @@ func _load_progress() -> void:
     camera_distance = clampf(float(parsed.get("camera_distance",1.0)),0.62,1.75)
     if stockade_built:
         _build_stockade()
-        gate_hp = float(parsed.get("gate_hp",GATE_HP_MAX))
+        gate_hp = clampf(float(parsed.get("gate_hp",GATE_HP_MAX)) * (GATE_HP_MAX/110.0) if not parsed.has("defense_hp_scale") else float(parsed.get("gate_hp",GATE_HP_MAX)),0.0,GATE_HP_MAX)
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
             gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
         var saved_wall_hp = parsed.get("wall_hp",[])
         if saved_wall_hp is Array:
             for i in range(mini(saved_wall_hp.size(),wall_segments.size())):
-                wall_segments[i]["hp"] = clampf(float(saved_wall_hp[i]),0.0,WALL_HP_MAX)
+                wall_segments[i]["hp"] = clampf(float(saved_wall_hp[i]) * (WALL_HP_MAX/90.0) if not parsed.has("defense_hp_scale") else float(saved_wall_hp[i]),0.0,WALL_HP_MAX)
                 var hp_now: float = float(wall_segments[i]["hp"])
                 var indicator: Label3D = wall_segments[i]["indicator"]
                 indicator.visible = hp_now < WALL_HP_MAX * 0.5
@@ -1153,5 +1251,5 @@ func _load_progress() -> void:
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
 func _exit_tree() -> void:
-    if hero != null:
+    if hero != null and not skip_save_on_exit:
         _save_progress()
