@@ -1,0 +1,34 @@
+ULTIMO RIFUGIO — ALFA 13
+========================
+NOVITA GIOCABILITA
+Un nuovo punto radio si trova a EST del rifugio, nel bosco (coordinate 13, -10).
+Avvicinati e premi R per attivare una breve sfida di 32 secondi.
+Durante la trasmissione vengono richiamati soltanto zombie normali gia presenti.
+Se ti allontani troppo per 5 secondi, la missione si interrompe e potrai riprovare.
+Se la porti a termine ricevi +25 legno e +20 monete.
+La stazione torna disponibile dopo circa 3 minuti.
+I progressi e il tempo di riattivazione sono inclusi nel salvataggio.
+
+MIGLIORIE ESTETICHE
+- Casetta: fascioni del tetto, frontone, travi e colonne del portico.
+- Lanterna con luce locale e nuove provviste accanto alla casa.
+- Vegetazione piu varia: piccoli fiori, dettagli nelle radure.
+- Sentiero battuto verso la stazione radio.
+- Modello radio 3D composto da pannelli, pulsanti, antenna e segnalatore luminoso.
+
+COMANDI
+- R vicino alla radio: avvia la missione.
+- Gli altri comandi (E banco riparazioni, T orda immediata, F3 test, N nuova partita)
+  sono invariati.
+
+RIMANDATO SU RICHIESTA
+- Cancello attraversabile solo dal protagonista fino a distruzione.
+- Nuovo sistema estetico dei danni (l'attuale non piace all'utente).
+- Pulsante Ripara tutto nel menu del banco.
+- Selezione di strutture e singole sezioni per ispezionare HP e riparare direttamente.
+Queste modifiche non sono state introdotte in Alfa 13.
+
+VERIFICHE
+- Pubblicazione e integrita strutturale del codice controllate.
+- Il gioco richiede ancora una prova reale di importazione/compilazione Godot Windows.
+- In caso di errore inviare build/log_build.txt.
