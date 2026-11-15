@@ -1,11 +1,13 @@
 extends Node3D
-## ALFA 08 - piccola radura 3D nativa.
+## ALFA 09 - zoom, salute individuale e segnalazione delle minacce.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
 const REPAIR_COST := 18
 const FIRST_RAID_TIME := 120.0
 const WORLD_HALF := 22.0
+const WALL_HP_MAX := 90.0
+const GATE_HP_MAX := 110.0
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -18,6 +20,14 @@ var gate_left: Node3D
 var gate_right: Node3D
 var gate_left_collision: CollisionShape3D
 var gate_right_collision: CollisionShape3D
+var wall_segments: Array[Dictionary] = []
+var gate_hp: float = GATE_HP_MAX
+var gate_indicator: Label3D
+var camera_distance: float = 1.0
+var enemy_indicator_root: Control
+var enemy_indicators: Array[Label] = []
+var noise_spawn_cooldown: float = 0.0
+var wall_warning_time: float = 0.0
 var top_hud: Label
 var objective_hud: Label
 var notify_hud: Label
@@ -74,6 +84,9 @@ func _process(delta: float) -> void:
     _update_gate(delta)
     _update_camera(delta)
     _update_hud()
+    _update_enemy_indicators()
+    noise_spawn_cooldown = maxf(0.0, noise_spawn_cooldown - delta)
+    wall_warning_time = maxf(0.0, wall_warning_time - delta)
     enemies = enemies.filter(func(enemy): return is_instance_valid(enemy))
     if save_time > 12.0:
         save_time = 0.0
@@ -97,6 +110,15 @@ func _unhandled_input(event: InputEvent) -> void:
             KEY_U:
                 if not paused:
                     _upgrade_weapon()
+    if event is InputEventMouseButton and event.pressed and not paused:
+        if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+            camera_distance = maxf(0.62, camera_distance - 0.10)
+            get_viewport().set_input_as_handled()
+            return
+        if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+            camera_distance = minf(1.75, camera_distance + 0.10)
+            get_viewport().set_input_as_handled()
+            return
     if event is InputEventMouseButton:
         if event.button_index == MOUSE_BUTTON_LEFT:
             last_mouse_button = event.pressed
@@ -296,19 +318,21 @@ func _create_camera() -> void:
     camera.name = "Telecamera_inclinata"
     camera.current = true
     camera.fov = 47.0
-    camera.position = hero.global_position + Vector3(0, 14.5, 16.5)
+    camera.position = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
     add_child(camera)
     camera.look_at(hero.global_position + Vector3(0, 1.15, -1.9), Vector3.UP)
 
 func _update_camera(delta: float) -> void:
-    var desired: Vector3 = hero.global_position + Vector3(0, 14.5, 16.5)
+    var desired: Vector3 = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
     camera.global_position = camera.global_position.lerp(desired, clampf(delta * 3.0, 0.0, 1.0))
     camera.look_at(hero.global_position + Vector3(0, 1.15, -2.0), Vector3.UP)
 
 func _spawn_initial_enemies() -> void:
-    _spawn_enemy(Vector3(-11, .13, 10), "normal", false)
-    _spawn_enemy(Vector3(12, .13, 9), "normal", false)
-    _spawn_enemy(Vector3(13, .13, -9), "runner", false)
+    # Presenze vicine ma fuori dal cortile: visibili anche prima della prima orda.
+    _spawn_enemy(Vector3(-7.1, .13, -7.1), "normal", false)
+    _spawn_enemy(Vector3(7.0, .13, -5.5), "normal", false)
+    _spawn_enemy(Vector3(0.5, .13, -11.0), "normal", false)
+    _spawn_enemy(Vector3(10.0, .13, 9.0), "runner", false)
 
 func _spawn_enemy(at: Vector3, variant: String, wave: bool) -> void:
     var mob = preload("res://scripts/zombie.gd").new()
@@ -316,6 +340,11 @@ func _spawn_enemy(at: Vector3, variant: String, wave: bool) -> void:
     mob.global_position = at
     mob.configure(self, variant, wave)
     enemies.append(mob)
+
+func has_clear_path(from_point: Vector3, to_point: Vector3) -> bool:
+    var query := PhysicsRayQueryParameters3D.create(from_point+Vector3.UP*1.0,to_point+Vector3.UP*1.0,1)
+    var collision: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+    return collision.is_empty()
 
 func closest_enemy(position_3d: Vector3, radius: float):
     var best = null
@@ -397,6 +426,22 @@ func _regrow_trees() -> void:
 func make_noise(where: Vector3, duration: float) -> void:
     noise_position = where
     noise_time = duration
+    # Un rumore puo' richiamare qualcuno dal bosco, con limite per evitare orde infinite.
+    if elapsed < 8.0 or noise_spawn_cooldown > 0.0:
+        return
+    var roaming_count := 0
+    for enemy in enemies:
+        if is_instance_valid(enemy) and not enemy.defeated and not enemy.from_wave:
+            roaming_count += 1
+    if roaming_count >= 5:
+        return
+    noise_spawn_cooldown = 20.0
+    var side: float = -1.0 if rng.randf() < 0.5 else 1.0
+    var spawn_x: float = clampf(where.x + side * rng.randf_range(7.0, 10.0), -19.0, 19.0)
+    var spawn_z: float = clampf(where.z + rng.randf_range(-7.0, 7.0), -19.0, 19.0)
+    if absf(spawn_x) < 5.9 and spawn_z > -8.8 and spawn_z < 4.8:
+        spawn_z = -10.0
+    _spawn_enemy(Vector3(spawn_x,0.13,spawn_z), "normal", false)
 
 func _start_raid() -> void:
     raid_number += 1
@@ -421,14 +466,26 @@ func _build_or_repair() -> void:
         base_hp = 150.0
         _build_stockade()
         show_message("PALIZZATA + CANCELLO COSTRUITI!", 3.0)
-    elif base_hp < 150.0 or gate_broken:
+    elif _has_damaged_defenses():
         if wood < REPAIR_COST:
             show_message("Servono %d legno per la riparazione." % REPAIR_COST, 2.0)
             return
         wood -= REPAIR_COST
-        base_hp = 150.0
+        gate_hp = GATE_HP_MAX
         gate_broken = false
-        show_message("Palizzata riparata.", 2.3)
+        for section in wall_segments:
+            section["hp"] = WALL_HP_MAX
+            for mesh in section["visuals"]:
+                if is_instance_valid(mesh):
+                    mesh.visible = true
+            var collider: CollisionShape3D = section["collider"]
+            collider.set_deferred("disabled", false)
+            var indicator: Label3D = section["indicator"]
+            indicator.visible = false
+        if is_instance_valid(gate_indicator):
+            gate_indicator.visible = false
+        _sync_gate_collision(false)
+        show_message("Sezioni e cancello riparati.", 2.3)
     else:
         show_message("Palizzata già integra.", 1.7)
     _save_progress()
@@ -436,6 +493,7 @@ func _build_or_repair() -> void:
 func _build_stockade() -> void:
     if fence_root != null and is_instance_valid(fence_root):
         fence_root.queue_free()
+    wall_segments.clear()
     fence_root = Node3D.new()
     fence_root.name = "Palizzata_automatica"
     add_child(fence_root)
@@ -474,16 +532,20 @@ func _build_stockade() -> void:
     for x in [-5.3, 5.3]:
         for z in [back_z, front_z]:
             _cone(fence_root,"Palo_angolare",Vector3(x,1.75,z),.37,3.5,"#7f5838",.17)
-    # Le tavole sono solo grafica. Queste cinque superfici fisiche chiudono
-    # tutto il recinto, lasciando libero unicamente il vano del cancello.
-    _wall_collision("Parete_posteriore", Vector3(0.0,1.12,back_z), Vector3(10.95,2.24,.50))
-    _wall_collision("Parete_sinistra", Vector3(left_x,1.12,-1.95), Vector3(.50,2.24,12.40))
-    _wall_collision("Parete_destra", Vector3(right_x,1.12,-1.95), Vector3(.50,2.24,12.40))
+    # Ogni tratto ha collisione e HP indipendenti (nessun HP condiviso col rifugio).
+    for i in range(3):
+        var x_center: float = -3.55 + float(i) * 3.55
+        _wall_collision("Parete_nord_%d" % (i+1),Vector3(x_center,1.12,back_z),Vector3(3.55,2.24,.50))
+    for i in range(2):
+        var z_center: float = -4.925 + float(i) * 5.95
+        _wall_collision("Parete_ovest_%d" % (i+1),Vector3(left_x,1.12,z_center),Vector3(.50,2.24,5.95))
+        _wall_collision("Parete_est_%d" % (i+1),Vector3(right_x,1.12,z_center),Vector3(.50,2.24,5.95))
     _wall_collision("Parete_frontale_sinistra", Vector3(-3.19,1.12,front_z), Vector3(4.32,2.24,.50))
     _wall_collision("Parete_frontale_destra", Vector3(3.19,1.12,front_z), Vector3(4.32,2.24,.50))
     # Anche le ante hanno collider, legati allo stesso nodo che ruota.
     gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.53,1.03,0.0))
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.53,1.03,0.0))
+    gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
 
 func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
@@ -499,6 +561,116 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     collider.shape = shape
     collider.position = center
     body.add_child(collider)
+    var indicator := _create_defense_indicator(body, center + Vector3(0.0, 1.65, 0.0))
+    var visuals: Array[MeshInstance3D] = []
+    for obj in fence_root.get_children():
+        if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
+            if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
+                visuals.append(obj)
+    wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals})
+
+func _create_defense_indicator(parent: Node3D, position_3d: Vector3) -> Label3D:
+    var indicator := Label3D.new()
+    indicator.name = "Salute_difesa"
+    indicator.position = position_3d
+    indicator.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+    indicator.no_depth_test = true
+    indicator.font_size = 35
+    indicator.pixel_size = 0.009
+    indicator.outline_size = 7
+    indicator.modulate = Color("#ffb577")
+    indicator.outline_modulate = Color("#301910")
+    indicator.visible = false
+    parent.add_child(indicator)
+    return indicator
+
+func _has_damaged_defenses() -> bool:
+    if gate_broken or gate_hp < GATE_HP_MAX:
+        return true
+    for section in wall_segments:
+        if float(section["hp"]) < WALL_HP_MAX:
+            return true
+    return false
+
+func _nearest_wall_section(from_position: Vector3) -> int:
+    var selected := -1
+    var best := INF
+    for i in range(wall_segments.size()):
+        var section: Dictionary = wall_segments[i]
+        if float(section["hp"]) <= 0.0:
+            continue
+        var point: Vector3 = section["position"]
+        # Distanza al segmento rettangolare, non al suo centro.
+        var collider: CollisionShape3D = section["collider"]
+        var dimensions: Vector3 = (collider.shape as BoxShape3D).size
+        var dx: float = maxf(absf(from_position.x - point.x) - dimensions.x * 0.5, 0.0)
+        var dz: float = maxf(absf(from_position.z - point.z) - dimensions.z * 0.5, 0.0)
+        var score: float = dx * dx + dz * dz
+        if score < best:
+            best = score
+            selected = i
+    return selected
+
+func defense_target(from_position: Vector3) -> Vector3:
+    if not stockade_built:
+        return Vector3(0.0,0.0,-3.6)
+    if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
+        return Vector3(0.0,0.0,-3.6)
+    if from_position.z > 4.0 and absf(from_position.x) < 1.1 and not gate_broken:
+        return Vector3(0.0,0.0,5.05)
+    var index := _nearest_wall_section(from_position)
+    if index == -1:
+        return Vector3(0.0,0.0,-3.6)
+    var section: Dictionary = wall_segments[index]
+    var center: Vector3 = section["position"]
+    var collider: CollisionShape3D = section["collider"]
+    var dims: Vector3 = (collider.shape as BoxShape3D).size
+    var attack_point := center
+    if dims.x > dims.z:
+        attack_point.x = clampf(from_position.x,center.x-dims.x*0.5+0.35,center.x+dims.x*0.5-0.35)
+        attack_point.z = center.z + (1.05 if from_position.z >= center.z else -1.05)
+    else:
+        attack_point.z = clampf(from_position.z,center.z-dims.z*0.5+0.35,center.z+dims.z*0.5-0.35)
+        attack_point.x = center.x + (1.05 if from_position.x >= center.x else -1.05)
+    return attack_point
+
+func attack_defense_at(from_position: Vector3, damage: float) -> void:
+    if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
+        damage_base(damage)
+        return
+    if from_position.z > 4.0 and absf(from_position.x) < 1.1 and not gate_broken:
+        gate_hp = maxf(0.0,gate_hp-damage)
+        if is_instance_valid(gate_indicator):
+            gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
+            gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
+        if gate_hp <= 0.0:
+            gate_broken = true
+            _sync_gate_collision(true)
+            show_message("CANCELLO DISTRUTTO! Ripara con B.",3.0)
+        return
+    var index := _nearest_wall_section(from_position)
+    if index == -1 or not stockade_built:
+        damage_base(damage)
+        return
+    var section: Dictionary = wall_segments[index]
+    section["hp"] = maxf(0.0, float(section["hp"]) - damage)
+    var hp: float = float(section["hp"])
+    var indicator: Label3D = section["indicator"]
+    indicator.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
+    indicator.text = "MURO %d/%d" % [ceili(hp), int(WALL_HP_MAX)]
+    indicator.modulate = Color("#ff6565") if hp < WALL_HP_MAX * 0.25 else Color("#ffc477")
+    if hp <= 0.0:
+        var collider: CollisionShape3D = section["collider"]
+        collider.set_deferred("disabled", true)
+        for mesh in section["visuals"]:
+            if is_instance_valid(mesh):
+                mesh.visible = false
+        indicator.visible = true
+        indicator.text = "BRECCIA!"
+        show_message("BRECCIA NELLA PALIZZATA! Ripara con B.",3.0)
+    elif hp < WALL_HP_MAX * 0.5 and wall_warning_time <= 0.0:
+        wall_warning_time = 6.0
+        show_message("MURO DANNEGGIATO: %s" % str(section["name"]),2.8)
 
 func _gate_collision(leaf: Node3D, title: String, offset: Vector3) -> CollisionShape3D:
     var body := StaticBody3D.new()
@@ -563,12 +735,12 @@ func _update_gate(delta: float) -> void:
     _sync_gate_collision(passable)
 
 func damage_base(damage: float) -> void:
-    base_hp -= damage
+    # La casetta ha HP separati e viene colpita solo se lo zombie la raggiunge.
+    base_hp = maxf(0.0, base_hp - damage)
     if base_hp <= 0.0:
         base_hp = 150.0
-        gate_broken = true
         wood = maxi(0, wood - 10)
-        show_message("Difese danneggiate! Per riparare servono 18 legno.", 3.0)
+        show_message("Rifugio devastato! Persi 10 legno.", 3.0)
 
 func _upgrade_weapon() -> void:
     if weapon_level >= 4:
@@ -618,7 +790,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 08",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 09",13,Color("#e6bb77"))
     top_hud = _label(left_vbox,"VITA 100/100    LEGNO 0    MONETE 0",18,Color("#fff1cf"))
     info_hud = _label(left_vbox,"Rifugio: 150/150",13,Color("#c2d2ba"))
     var objective_panel := PanelContainer.new()
@@ -654,6 +826,21 @@ func _create_hud() -> void:
     special_button.pressed.connect(func(): hero.special_attack())
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
+    enemy_indicator_root = Control.new()
+    enemy_indicator_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+    enemy_indicator_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    root.add_child(enemy_indicator_root)
+    for i in range(12):
+        var indicator := Label.new()
+        indicator.text = "! ZOMBIE"
+        indicator.add_theme_font_size_override("font_size",16)
+        indicator.add_theme_color_override("font_color",Color("#ff7968"))
+        indicator.add_theme_color_override("font_outline_color",Color("#271518"))
+        indicator.add_theme_constant_override("outline_size",5)
+        indicator.visible = false
+        indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+        enemy_indicator_root.add_child(indicator)
+        enemy_indicators.append(indicator)
     var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
@@ -670,7 +857,7 @@ func _button(parent: Control, caption: String) -> Button:
     return button
 
 func _update_hud() -> void:
-    top_hud.text = "VITA %d/100    LEGNO %d    MONETE %d" % [ceili(hero.hp),wood,coins]
+    top_hud.text = "LEGNO %d    MONETE %d   |   ZOOM: %d%%" % [wood,coins,roundi(100.0/camera_distance)]
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
     objective_hud.text = "Esplora e costruisci   ·   ORDA IN %d:%02d" % [int(remain / 60), remain % 60]
@@ -678,13 +865,39 @@ func _update_hud() -> void:
         build_button.text = "RECINTO · %d LEGNO" % FENCE_COST
         build_button.disabled = wood < FENCE_COST
     else:
-        build_button.text = "RIPARA · %d LEGNO" % REPAIR_COST if base_hp < 150.0 or gate_broken else "RECINTO COMPLETO"
-        build_button.disabled = (wood < REPAIR_COST) or (base_hp >= 150.0 and not gate_broken)
+        build_button.text = "RIPARA · %d LEGNO" % REPAIR_COST if _has_damaged_defenses() else "RECINTO COMPLETO"
+        build_button.disabled = (wood < REPAIR_COST) or not _has_damaged_defenses()
     var cost := 12 + (weapon_level - 1) * 14
     upgrade_button.text = "ARMA Lv.%d · %d MON." % [weapon_level,cost] if weapon_level < 4 else "ARMA MASSIMA"
     upgrade_button.disabled = coins < cost or weapon_level >= 4
     special_button.disabled = hero.special_cooldown > 0.0
     dodge_button.disabled = hero.dash_cooldown > 0.0
+
+func _update_enemy_indicators() -> void:
+    if enemy_indicator_root == null:
+        return
+    var counter := 0
+    var view_size: Vector2 = get_viewport().get_visible_rect().size
+    for enemy in enemies:
+        if counter >= enemy_indicators.size():
+            break
+        if not is_instance_valid(enemy) or enemy.defeated:
+            continue
+        # Solo gli zombie oltre la parete posteriore, che altrimenti vengono coperti.
+        if enemy.global_position.z > -7.6 or absf(enemy.global_position.x) > 7.5:
+            continue
+        var marker: Label = enemy_indicators[counter]
+        counter += 1
+        var target: Vector3 = enemy.global_position + Vector3(0.0,2.8,0.0)
+        if camera.is_position_behind(target):
+            marker.visible = false
+            continue
+        var screen: Vector2 = camera.unproject_position(target)
+        marker.position = Vector2(clampf(screen.x - 36.0, 12.0, view_size.x-100.0),clampf(screen.y-12.0, 112.0,view_size.y-96.0))
+        marker.text = "! ZOMBIE" if screen.y >= 118.0 else "! ZOMBIE NORD"
+        marker.visible = true
+    for i in range(counter, enemy_indicators.size()):
+        enemy_indicators[i].visible = false
 
 func show_message(message: String, duration: float = 2.5) -> void:
     if notify_hud == null:
@@ -697,6 +910,12 @@ func _save_directory() -> String:
         return OS.get_executable_path().get_base_dir().path_join("salvataggi")
     return ProjectSettings.globalize_path("user://salvataggi")
 
+func _wall_hp_for_save() -> Array:
+    var saved: Array = []
+    for section in wall_segments:
+        saved.append(float(section["hp"]))
+    return saved
+
 func _save_progress() -> void:
     var directory := _save_directory()
     var result := DirAccess.make_dir_recursive_absolute(directory)
@@ -706,7 +925,7 @@ func _save_progress() -> void:
     var file := FileAccess.open(path,FileAccess.WRITE)
     if file == null:
         return
-    var data := {"version":8,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
+    var data := {"version":8,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"gate_hp":gate_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -730,11 +949,31 @@ func _load_progress() -> void:
     next_raid = maxf(elapsed + 60.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
     raid_number = int(parsed.get("raid_number",0))
     hero.hp = float(parsed.get("hp",100.0))
+    hero._update_health_bar()
     hero.global_position = Vector3(float(parsed.get("px",0.0)), .13, float(parsed.get("pz",7.0)))
     stockade_built = bool(parsed.get("stockade_built",false))
     gate_broken = bool(parsed.get("gate_broken",false))
+    camera_distance = clampf(float(parsed.get("camera_distance",1.0)),0.62,1.75)
     if stockade_built:
         _build_stockade()
+        gate_hp = float(parsed.get("gate_hp",GATE_HP_MAX))
+        if is_instance_valid(gate_indicator):
+            gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
+            gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
+        var saved_wall_hp = parsed.get("wall_hp",[])
+        if saved_wall_hp is Array:
+            for i in range(mini(saved_wall_hp.size(),wall_segments.size())):
+                wall_segments[i]["hp"] = clampf(float(saved_wall_hp[i]),0.0,WALL_HP_MAX)
+                var hp_now: float = float(wall_segments[i]["hp"])
+                var indicator: Label3D = wall_segments[i]["indicator"]
+                indicator.visible = hp_now < WALL_HP_MAX * 0.5
+                indicator.text = "BRECCIA!" if hp_now <= 0.0 else "MURO %d/%d" % [ceili(hp_now),int(WALL_HP_MAX)]
+                if hp_now <= 0.0:
+                    for mesh in wall_segments[i]["visuals"]:
+                        if is_instance_valid(mesh):
+                            mesh.visible = false
+                    var collider: CollisionShape3D = wall_segments[i]["collider"]
+                    collider.set_deferred("disabled",true)
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
 func _exit_tree() -> void:
