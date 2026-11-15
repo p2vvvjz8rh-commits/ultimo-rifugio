@@ -537,6 +537,8 @@ func _build_or_repair() -> void:
             collider.set_deferred("disabled", false)
             var indicator: Label3D = section["indicator"]
             indicator.visible = false
+            var crack: MeshInstance3D = section["crack"]
+            crack.visible = false
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = false
         _sync_gate_collision(false)
@@ -610,6 +612,8 @@ func _use_repair_bench() -> void:
                 mesh.visible = true
         var indicator: Label3D = most_damaged["indicator"]
         indicator.visible = repaired < WALL_HP_MAX * .5
+        var crack: MeshInstance3D = most_damaged["crack"]
+        crack.visible = repaired < WALL_HP_MAX * .5
         indicator.text = "MURO %d/%d" % [ceili(repaired),int(WALL_HP_MAX)]
         show_message("Riparato %s: +%d salute." % [str(most_damaged["name"]),int(BENCH_REPAIR_AMOUNT)],2.0)
     _save_progress()
@@ -695,7 +699,15 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
         if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
             if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
                 visuals.append(obj)
-    wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals})
+    # Segno di danno visivo localizzato: compare quando la sezione perde meta salute.
+    var crack := _box(fence_root,"Asse_scheggiata_" + title,Vector3(center.x,1.35,center.z + size.z*.5 + .035),Vector3(minf(size.x*.65,1.15),.11,.09),"#4a3123",-.34)
+    if size.x < size.z:
+        crack.position = Vector3(center.x + size.x*.5 + .035,1.35,center.z)
+        crack.rotation.z = 0.0
+        crack.rotation.y = .35
+        (crack.mesh as BoxMesh).size = Vector3(.09,.11,minf(size.z*.65,1.15))
+    crack.visible = false
+    wall_segments.append({"name":title, "hp":WALL_HP_MAX, "position":Vector3(center.x,0.0,center.z), "collider":collider,"indicator":indicator,"visuals":visuals,"crack":crack})
 
 func _create_defense_indicator(parent: Node3D, position_3d: Vector3) -> Label3D:
     var indicator := Label3D.new()
@@ -785,6 +797,8 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
     var hp: float = float(section["hp"])
     var indicator: Label3D = section["indicator"]
     indicator.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
+    var crack: MeshInstance3D = section["crack"]
+    crack.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
     indicator.text = "MURO %d/%d" % [ceili(hp), int(WALL_HP_MAX)]
     indicator.modulate = Color("#ff6565") if hp < WALL_HP_MAX * 0.25 else Color("#ffc477")
     if hp <= 0.0:
@@ -1126,6 +1140,8 @@ func _load_progress() -> void:
                 var hp_now: float = float(wall_segments[i]["hp"])
                 var indicator: Label3D = wall_segments[i]["indicator"]
                 indicator.visible = hp_now < WALL_HP_MAX * 0.5
+                var crack: MeshInstance3D = wall_segments[i]["crack"]
+                crack.visible = hp_now < WALL_HP_MAX * 0.5 and hp_now > 0.0
                 indicator.text = "BRECCIA!" if hp_now <= 0.0 else "MURO %d/%d" % [ceili(hp_now),int(WALL_HP_MAX)]
                 if hp_now <= 0.0:
                     for mesh in wall_segments[i]["visuals"]:
