@@ -1,0 +1,6 @@
+Questo ZIP e il progetto Alfa 08 con le ultime patch.
+Caricare i FILE (non lo ZIP) nella radice di un repository GitHub dedicato.
+Il sistema automatico richiede un repository pubblico per il download senza credenziali.
+Prima di usare AGGIORNA_E_GIOCA.bat indicare REPOSITORY=utente/nome in aggiornamenti/config.txt sul proprio PC.
+Gli aggiornamenti successivi richiedono che siano pubblicati nuovi commit nella branch main.
+Non caricare su GitHub cartelle build, .godot, .godot_portatile, ne salvataggi personali.

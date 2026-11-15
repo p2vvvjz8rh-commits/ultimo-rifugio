@@ -1,0 +1,19 @@
+; Ultimo Rifugio - ALFA 08 / Godot 4.7.2 (GDScript, 3D nativo).
+; Il progetto importa i file glTF originali del kit Quaternius CC0.
+config_version=5
+
+[application]
+config/name="Ultimo Rifugio - Alfa 08"
+run/main_scene="res://scenes/World.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=800
+window/stretch/mode="canvas_items"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+anti_aliasing/quality/msaa_3d=2

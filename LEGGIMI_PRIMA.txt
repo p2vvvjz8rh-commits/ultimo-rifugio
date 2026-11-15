@@ -1,0 +1,48 @@
+ULTIMO RIFUGIO - ALFA 08
+========================
+
+Questa e' la prima radura 3D realizzata come progetto nativo Godot 4.7.2.
+Contiene i modelli originali del pacchetto Quaternius (licenza CC0).
+
+COSA CONTIENE
+------------
+- Protagonista Shaun 3D con animazioni Idle, Walk e Slash originali.
+- Zombie normale (Basic), corridore (Basic snellito, animazione Run),
+  e bruto (Chubby, presente solo dalla seconda orda).
+- Terreno 3D, abeti, rocce, piccolo rifugio, fuoco, palizzata automatica.
+- Movimento WASD/frecce o mouse; attacco/legno automatici; colpo Q,
+  schivata SPAZIO; recinto B (45 legno), arma U; ESC pausa.
+- Salvataggi automatici in salvataggi/partita.json vicino all'eseguibile.
+
+IMPORTANTE: NON C'E' ANCORA L'EXE PRONTO NELLO ZIP
+-------------------------------------------------
+Il progetto nativo e' pronto ma in questo ambiente non si e' potuto
+avviare Godot o esportare direttamente un gioco Windows.
+Per evitare di spacciarti un eseguibile non verificato, abbiamo incluso
+una procedura di costruzione portatile per Windows.
+
+COME AVVIARE SUL TUO PC
+-----------------------
+1. Estrai TUTTO lo ZIP in una cartella, ad esempio Documenti/UltimoRifugio08.
+2. Con Internet attivo, fai doppio clic su AVVIA_O_CREA_GIOCO.bat.
+3. Il primo avvio scarica Godot 4.7.2 e i template ufficiali, senza installare
+   programmi nel sistema; importa i modelli ed esporta l'eseguibile.
+4. Se l'esportazione riesce, il gioco parte. Nei successivi avvii parte subito.
+5. Troverai il gioco in build/UltimoRifugio.exe.
+   Nella cartella salvataggi si trova partita.json.
+6. Il programma genera anche Ultimo_Rifugio_Alfa08_Windows_Portatile.zip,
+   contenente la build da tenere o spostare su un altro PC.
+
+Se il processo si interrompe, copia il testo del file build/log_build.txt
+nella chat: possiamo correggere precisamente l'errore.
+
+Questa versione e' un vertical slice, non sostituisce le meccaniche
+complete di Alfa 07; il ritmo delle orde e' ancora di prova.
+
+LICENZE E PRIVACY
+----------------
+Quaternius CC0: vedi docs/LICENSE_QUATERNIUS.txt.
+I salvataggi restano sul PC. Nessun account o connessione richiesti
+per giocare dopo la compilazione.
+
+Sviluppo/asset: progetto Godot open source + Quaternius (CC0).

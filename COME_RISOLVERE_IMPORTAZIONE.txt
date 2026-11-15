@@ -1,0 +1,13 @@
+ULTIMO RIFUGIO — ALFA 08 / CORREZIONE IMPORTAZIONE
+
+Questa versione corregge il messaggio "Godot non ha completato l'importazione (codice )".
+
+Se hai gia' estratto Alfa 08 e Godot e' stato scaricato:
+- Sostituisci tools/CREA_WINDOWS.ps1 con quello corretto.
+- Fai di nuovo doppio clic su AVVIA_O_CREA_GIOCO.bat.
+- Il motore gia' presente in .godot_portatile/engine sara' riutilizzato.
+
+Se ricompare un errore, apri build/log_build.txt e invia il contenuto qui.
+Sono presenti anche build/import_stdout.txt e build/import_stderr.txt.
+
+Non cancellare i salvataggi. L'Alfa 07 resta indipendente.

@@ -1,0 +1,4 @@
+# Indirizzo del repository GitHub dedicato al gioco: proprietario/nome
+# Esempio: esempio/ultimo-rifugio
+REPOSITORY=
+BRANCH=main
