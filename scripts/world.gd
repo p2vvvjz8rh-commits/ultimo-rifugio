@@ -580,6 +580,8 @@ func _build_or_repair() -> void:
         wood -= REPAIR_COST
         gate_hp = GATE_HP_MAX
         gate_broken = false
+        base_hp = CABIN_HP_MAX
+        bench_hp = BENCH_HP_MAX
         for section in wall_segments:
             section["hp"] = WALL_HP_MAX
             for mesh in section["visuals"]:
@@ -594,9 +596,138 @@ func _build_or_repair() -> void:
         if is_instance_valid(gate_indicator):
             gate_indicator.visible = false
         _sync_gate_collision(false)
-        show_message("Sezioni e cancello riparati.", 2.3)
+        _sync_structure_visuals()
+        show_message("Rifugio e difese riparati, banco compreso.", 2.3)
     else:
         show_message("Palizzata già integra.", 1.7)
+    _save_progress()
+
+func _damaged_wall_count() -> int:
+    var count: int = 0
+    for wall in wall_segments:
+        if float(wall["hp"]) < WALL_HP_MAX:
+            count += 1
+    return count
+
+func _make_structure_visual(parent: Node3D, kind: String, maximum: float, local_position: Vector3):
+    # Nuove strutture potranno usare lo stesso componente senza modificare l'interfaccia.
+    var component = preload("res://scripts/structure_visual.gd").new()
+    component.name = "Stato_struttura_" + kind
+    parent.add_child(component)
+    component.configure(kind,maximum,local_position)
+    return component
+
+func _sync_structure_visuals() -> void:
+    if is_instance_valid(cabin_visual):
+        cabin_visual.set_health(base_hp)
+        for item in cabin_meshes:
+            if is_instance_valid(item):
+                var title: String = String(item.name)
+                var missing_roof: bool = base_hp > 0.0 and base_hp < CABIN_HP_MAX*.5 and title == "Tetto_sinistro"
+                item.visible = title == "Fondamenta" or (base_hp > 0.0 and not missing_roof)
+    if is_instance_valid(gate_visual):
+        gate_visual.set_health(gate_hp)
+        if is_instance_valid(gate_left) and is_instance_valid(gate_right):
+            gate_left.visible = gate_hp > 0.0
+            gate_right.visible = gate_hp > 0.0
+            gate_left.rotation.z = .18 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
+            gate_right.rotation.z = -.12 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
+    if is_instance_valid(bench_visual):
+        bench_visual.set_health(bench_hp)
+    if is_instance_valid(repair_bench):
+        var idx: int = 0
+        for child in repair_bench.get_children():
+            if child is MeshInstance3D:
+                child.visible = bench_hp > 0.0 and not (bench_hp < BENCH_HP_MAX*.5 and idx == 2)
+                idx += 1
+    for wall in wall_segments:
+        var hp_now: float = float(wall["hp"])
+        var component = wall["durability"]
+        if is_instance_valid(component):
+            component.set_health(hp_now)
+        var old: Label3D = wall["indicator"]
+        old.visible = false
+        var crack: MeshInstance3D = wall["crack"]
+        crack.visible = false
+        var meshes: Array = wall["visuals"]
+        for i in range(meshes.size()):
+            var mesh: MeshInstance3D = meshes[i]
+            if is_instance_valid(mesh):
+                mesh.visible = hp_now > 0.0 and not (hp_now < WALL_HP_MAX*.5 and i % 5 == 0)
+        var collision: CollisionShape3D = wall["collider"]
+        if hp_now <= 0.0 and not collision.disabled:
+            collision.set_deferred("disabled",true)
+        elif hp_now > 0.0 and collision.disabled:
+            collision.set_deferred("disabled",false)
+    if is_instance_valid(gate_indicator):
+        gate_indicator.visible = false
+
+func _create_test_panel(root: Control) -> void:
+    test_panel = PanelContainer.new()
+    test_panel.name = "Controlli_test"
+    test_panel.anchor_left = 1.0
+    test_panel.anchor_right = 1.0
+    test_panel.offset_left = -250
+    test_panel.offset_right = -16
+    test_panel.offset_top = 132
+    test_panel.offset_bottom = 450
+    test_panel.add_theme_stylebox_override("panel",_make_panel_style())
+    test_panel.visible = false
+    root.add_child(test_panel)
+    var column := VBoxContainer.new()
+    test_panel.add_child(column)
+    _label(column,"MODALITA DI PROVA (F3)",14,Color("#e6bb77"))
+    var wave := _button(column,"AVVIA ORDA (T)")
+    wave.pressed.connect(_test_start_raid)
+    var healing := _button(column,"CURA PROTAGONISTA")
+    healing.pressed.connect(func(): hero.hp = 100.0; hero._update_health_bar())
+    var add_wood := _button(column,"+50 LEGNO")
+    add_wood.pressed.connect(func(): wood += 50; _update_hud())
+    var add_coins := _button(column,"+50 MONETE")
+    add_coins.pressed.connect(func(): coins += 50; _update_hud())
+    var simulate := _button(column,"SIMULA DANNI")
+    simulate.pressed.connect(_test_damage_all)
+    var restore := _button(column,"RIPARA TUTTO (TEST)")
+    restore.pressed.connect(_test_repair_all)
+    test_stats = _label(column,"",12,Color("#e1e0bf"))
+
+func _toggle_test_panel() -> void:
+    if not is_instance_valid(test_panel):
+        return
+    test_panel_visible = not test_panel_visible
+    test_panel.visible = test_panel_visible
+
+func _test_start_raid() -> void:
+    if paused:
+        return
+    _start_raid()
+    show_message("ORDA DI PROVA %d IN ARRIVO" % raid_number,3.0)
+
+func _test_damage_all() -> void:
+    if not stockade_built:
+        show_message("Costruisci prima il recinto con B.",2.0)
+        return
+    for wall in wall_segments:
+        wall["hp"] = maxf(0.0,float(wall["hp"])-WALL_HP_MAX*.34)
+    gate_hp = maxf(0.0,gate_hp-GATE_HP_MAX*.34)
+    gate_broken = gate_hp <= 0.0
+    base_hp = maxf(0.0,base_hp-CABIN_HP_MAX*.34)
+    bench_hp = maxf(0.0,bench_hp-BENCH_HP_MAX*.34)
+    _sync_structure_visuals()
+    _sync_gate_collision(gate_broken or current_gate_open > .03)
+    show_message("Danni simulati: controlla barre e modelli.",2.6)
+    _save_progress()
+
+func _test_repair_all() -> void:
+    for wall in wall_segments:
+        wall["hp"] = WALL_HP_MAX
+    gate_hp = GATE_HP_MAX
+    gate_broken = false
+    base_hp = CABIN_HP_MAX
+    bench_hp = BENCH_HP_MAX
+    _sync_structure_visuals()
+    _sync_gate_collision(current_gate_open > .03)
+    show_message("Strutture ripristinate, compreso il banco.",2.4)
     _save_progress()
 
 func _create_repair_bench() -> void:
@@ -844,7 +975,7 @@ func _create_defense_indicator(parent: Node3D, position_3d: Vector3) -> Label3D:
     return indicator
 
 func _has_damaged_defenses() -> bool:
-    if gate_broken or gate_hp < GATE_HP_MAX:
+    if gate_broken or gate_hp < GATE_HP_MAX or base_hp < CABIN_HP_MAX or bench_hp < BENCH_HP_MAX:
         return true
     for section in wall_segments:
         if float(section["hp"]) < WALL_HP_MAX:
@@ -916,13 +1047,16 @@ func defense_target(from_position: Vector3) -> Vector3:
 
 func attack_defense_at(from_position: Vector3, damage: float) -> void:
     if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
-        damage_base(damage)
+        if is_instance_valid(repair_bench) and from_position.distance_to(repair_bench.global_position) < 2.2 and bench_hp > 0.0:
+            bench_hp = maxf(0.0,bench_hp-damage*.36)
+            if bench_hp <= 0.0:
+                show_message("BANCO DISTRUTTO! Ripristinalo con B.",3.0)
+            _sync_structure_visuals()
+        else:
+            damage_base(damage)
         return
     if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
         gate_hp = maxf(0.0,gate_hp-damage * .36)
-        if is_instance_valid(gate_indicator):
-            gate_indicator.visible = gate_hp < GATE_HP_MAX*0.5
-            gate_indicator.text = "CANCELLO %d/%d" % [ceili(gate_hp),int(GATE_HP_MAX)]
         if gate_hp <= 0.0:
             gate_broken = true
             _sync_gate_collision(true)
@@ -937,20 +1071,13 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
         return
     section["hp"] = maxf(0.0, float(section["hp"]) - damage * .36)
     var hp: float = float(section["hp"])
-    var indicator: Label3D = section["indicator"]
-    indicator.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
-    var crack: MeshInstance3D = section["crack"]
-    crack.visible = hp < WALL_HP_MAX * 0.5 and hp > 0.0
-    indicator.text = "MURO %d/%d" % [ceili(hp), int(WALL_HP_MAX)]
-    indicator.modulate = Color("#ff6565") if hp < WALL_HP_MAX * 0.25 else Color("#ffc477")
+    _sync_structure_visuals()
     if hp <= 0.0:
         var collider: CollisionShape3D = section["collider"]
         collider.set_deferred("disabled", true)
         for mesh in section["visuals"]:
             if is_instance_valid(mesh):
                 mesh.visible = false
-        indicator.visible = true
-        indicator.text = "BRECCIA!"
         show_message("BRECCIA NELLA PALIZZATA! Ripara con B.",3.0)
     elif hp < WALL_HP_MAX * 0.5 and wall_warning_time <= 0.0:
         wall_warning_time = 6.0
@@ -1020,11 +1147,16 @@ func _update_gate(delta: float) -> void:
 
 func damage_base(damage: float) -> void:
     # La casetta ha HP separati e viene colpita solo se lo zombie la raggiunge.
-    base_hp = maxf(0.0, base_hp - damage)
     if base_hp <= 0.0:
-        base_hp = 150.0
+        return
+    base_hp = maxf(0.0, base_hp - damage)
+    _sync_structure_visuals()
+    if base_hp <= 0.0:
         wood = maxi(0, wood - 10)
-        show_message("Rifugio devastato! Persi 10 legno.", 3.0)
+        show_message("RIFUGIO CROLLATO! Riparalo con B.", 3.0)
+    elif base_hp < CABIN_HP_MAX*.5 and wall_warning_time <= 0.0:
+        wall_warning_time = 6.0
+        show_message("Rifugio in pericolo! Serve una riparazione.",2.4)
 
 func _upgrade_weapon() -> void:
     if weapon_level >= 4:
@@ -1161,6 +1293,8 @@ func _update_hud() -> void:
     upgrade_button.disabled = coins < cost or weapon_level >= 4
     special_button.disabled = hero.special_cooldown > 0.0
     dodge_button.disabled = hero.dash_cooldown > 0.0
+    if is_instance_valid(test_stats):
+        test_stats.text = "Rifugio %d  |  Banco %d  |  Mura da riparare %d" % [ceili(base_hp),ceili(bench_hp),_damaged_wall_count()]
     if is_instance_valid(repair_bench_label):
         var close_to_bench: bool = hero.global_position.distance_to(repair_bench.global_position) < 4.4
         if bench_hp <= 0.0:
