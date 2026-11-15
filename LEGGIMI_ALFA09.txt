@@ -1,0 +1,26 @@
+ULTIMO RIFUGIO - ALFA 09 (prototipo sorgenti Godot)
+
+NOVITA'
+- Rotellina mouse: zoom regolabile fra 62% e 175% della distanza originaria.
+- Barra salute e valore HP sopra il protagonista: visibile appena la vita e' inferiore a 100.
+- 9 sezioni di palizzata con HP indipendenti da quelli della casetta, e salute separata per il cancello.
+- Indicatore di HP su ogni tratto danneggiato sotto il 50%; avviso se il muro cede.
+- Segnali a schermo per zombie sul lato nord della palizzata, difficili da vedere per la telecamera.
+- Zombie vaganti piu' vicini e possibilita' di attirarne altri facendo rumore.
+- Blocca i danni allo zombie protagonista attraverso le superfici solide.
+- Conserva i salvataggi di Alfa 08, introducendo i nuovi campi di salute della palizzata.
+
+AGGIORNAMENTO GITHUB
+Nel repository del gioco, caricare i file modificati del pacchetto ALFA09_CARICA_SU_GITHUB.zip.
+Dopo il commit, eseguire AGGIORNA_E_GIOCA.bat dalla cartella del gioco gia' configurata.
+Il sistema scarichera' il commit e ricompilera' il gioco.
+
+PROVA DI GIOCO
+1. Rotellina zoom, posizione relativa e reset a piacere.
+2. Provocare danni al protagonista e controllare la barra sopra la testa.
+3. Controllare i marker degli zombie a nord, anche dietro la palizzata.
+4. Durante l'orda osservare i singoli segmenti; HP del rifugio invariati finche' non c'e' una breccia.
+5. Riparare con B o il pulsante dedicato.
+
+ATTENZIONE: La struttura sorgente e' stata controllata ma NON e' stata eseguita in Godot su Windows in questo ambiente.
+Se la compilazione non riesce, inviare build/log_build.txt. Conservare una copia della precedente versione funzionante.
