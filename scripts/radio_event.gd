@@ -143,6 +143,9 @@ func _attract_zombies() -> void:
                 alive += 1
     if alive >= 6:
         return
+    # Ogni richiamo riattiva la ricerca del giocatore anche per gli zombie piu lontani.
+    game.noise_position = global_position
+    game.noise_time = maxf(game.noise_time,8.5)
     for i in range(2):
         var a: float = randf_range(0.0,TAU)
         var at: Vector3 = global_position + Vector3(cos(a)*7.0,.13,sin(a)*7.0)
