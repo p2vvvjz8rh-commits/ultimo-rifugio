@@ -775,6 +775,27 @@ func defense_target(from_position: Vector3) -> Vector3:
         return Vector3(0.0,0.0,-3.6)
     if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
         return Vector3(0.0,0.0,5.05)
+    # Una breccia permette il passaggio, ma solo in quel tratto.
+    var breach_distance: float = 7.0
+    var breach_target: Vector3 = Vector3.ZERO
+    var found_breach: bool = false
+    for wall in wall_segments:
+        if float(wall["hp"]) > 0.0:
+            continue
+        var breach: Vector3 = wall["position"]
+        var dist: float = from_position.distance_to(breach)
+        if dist < breach_distance:
+            breach_distance = dist
+            breach_target = breach
+            if absf(breach.x) > 4.8:
+                breach_target.x += -1.4 if breach.x > 0.0 else 1.4
+            elif breach.z > 2.0:
+                breach_target.z -= 1.4
+            else:
+                breach_target.z += 1.4
+            found_breach = true
+    if found_breach:
+        return breach_target
     var index := _nearest_wall_section(from_position)
     if index == -1:
         return Vector3(0.0,0.0,-3.6)
@@ -1218,7 +1239,7 @@ func _load_progress() -> void:
     weapon_level = int(parsed.get("weapon_level",1))
     base_hp = float(parsed.get("base_hp",150.0))
     elapsed = float(parsed.get("elapsed",0.0))
-    next_raid = maxf(elapsed + 60.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
+    next_raid = maxf(elapsed + 180.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
     raid_number = int(parsed.get("raid_number",0))
     hero.hp = float(parsed.get("hp",100.0))
     hero._update_health_bar()
