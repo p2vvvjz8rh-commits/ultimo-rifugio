@@ -12,6 +12,8 @@ const BENCH_REPAIR_COST := 8
 const BENCH_REPAIR_AMOUNT := 100.0
 const BENCH_HP_MAX := 130.0
 const CABIN_HP_MAX := 150.0
+const CABIN_DAMAGE_MULTIPLIER := .35
+const CAMERA_PAN_LIMIT := 10.0
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -30,6 +32,9 @@ var wall_segments: Array[Dictionary] = []
 var gate_hp: float = GATE_HP_MAX
 var gate_indicator: Label3D
 var camera_distance: float = 1.0
+var camera_pan := Vector3.ZERO
+var camera_focus := Vector3.ZERO
+var camera_dragging: bool = false
 var enemy_indicator_root: Control
 var enemy_indicators: Array[Label] = []
 var noise_spawn_cooldown: float = 0.0
@@ -105,6 +110,7 @@ func _ready() -> void:
     salvage.configure(self)
     _create_camera()
     _create_hud()
+    DisplayServer.window_set_title("Ultimo Rifugio · " + _candidate_identity())
     _load_progress()
     _spawn_initial_enemies()
     _spawn_supply_cache()
@@ -114,7 +120,10 @@ func _ready() -> void:
     show_message("CANDIDATA: clic destro per ispezionare; F per recuperare materiali a OVEST. ", 6.0)
 
 func _process(delta: float) -> void:
+    if camera_dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+        camera_dragging = false
     if paused:
+        _update_camera(delta)
         return
     if last_mouse_button and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
         last_mouse_button = false
@@ -142,8 +151,21 @@ func _process(delta: float) -> void:
         _save_progress()
 
 func _input(event: InputEvent) -> void:
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+        camera_dragging = event.pressed and not repair_popup.visible and not new_game_dialog.visible
+        if camera_dragging:
+            last_mouse_button = false
+            hero.clear_mouse_destination()
+        get_viewport().set_input_as_handled()
+        return
+    if event is InputEventMouseMotion and camera_dragging:
+        _pan_camera(event.relative)
+        get_viewport().set_input_as_handled()
+        return
     if event is InputEventKey and event.pressed and not event.echo:
         match event.keycode:
+            KEY_HOME:
+                camera_pan = Vector3.ZERO
             KEY_ESCAPE:
                 paused = not paused
                 show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
@@ -170,9 +192,12 @@ func _input(event: InputEvent) -> void:
                     radio_station.activate()
 
 func _unhandled_input(event: InputEvent) -> void:
+    if camera_dragging and event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]:
+        get_viewport().set_input_as_handled()
+        return
     # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
-    if event is InputEventMouseButton and event.pressed and not paused:
-        if event.button_index == MOUSE_BUTTON_RIGHT:
+    if event is InputEventMouseButton and event.pressed:
+        if event.button_index == MOUSE_BUTTON_RIGHT and not paused:
             _inspect_structure(event.position)
             get_viewport().set_input_as_handled()
             return
@@ -475,14 +500,31 @@ func _create_camera() -> void:
     camera.name = "Telecamera_inclinata"
     camera.current = true
     camera.fov = 47.0
-    camera.position = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
+    camera_focus = hero.global_position
+    camera.position = camera_focus + Vector3(0, 14.5, 16.5) * camera_distance
     add_child(camera)
     camera.look_at(hero.global_position + Vector3(0, 1.15, -1.9), Vector3.UP)
 
 func _update_camera(delta: float) -> void:
-    var desired: Vector3 = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
-    camera.global_position = camera.global_position.lerp(desired, clampf(delta * 3.0, 0.0, 1.0))
-    camera.look_at(hero.global_position + Vector3(0, 1.15, -2.0), Vector3.UP)
+    var target: Vector3 = hero.global_position + camera_pan
+    target.x = clampf(target.x,-WORLD_HALF,WORLD_HALF)
+    target.z = clampf(target.z,-WORLD_HALF,WORLD_HALF)
+    var weight: float = clampf(delta*3.0,0.0,1.0)
+    camera_focus = camera_focus.lerp(target,weight)
+    var desired: Vector3 = target + Vector3(0,14.5,16.5)*camera_distance
+    camera.global_position = camera.global_position.lerp(desired,weight)
+    camera.look_at(camera_focus+Vector3(0,1.15,-2.0),Vector3.UP)
+
+func _pan_camera(relative: Vector2) -> void:
+    var center: Vector2 = get_viewport().get_visible_rect().size*.5
+    var plane := Plane(Vector3.UP,0)
+    var before = plane.intersects_ray(camera.project_ray_origin(center),camera.project_ray_normal(center))
+    var after = plane.intersects_ray(camera.project_ray_origin(center+relative),camera.project_ray_normal(center+relative))
+    if before == null or after == null:
+        return
+    camera_pan += before-after
+    camera_pan.y = 0
+    camera_pan = camera_pan.limit_length(CAMERA_PAN_LIMIT)
 
 func _spawn_initial_enemies() -> void:
     # Presenze vicine ma fuori dal cortile: visibili anche prima della prima orda.
@@ -1249,7 +1291,7 @@ func damage_base(damage: float) -> void:
     # La casetta ha HP separati e viene colpita solo se lo zombie la raggiunge.
     if base_hp <= 0.0:
         return
-    base_hp = maxf(0.0, base_hp - damage)
+    base_hp = maxf(0.0, base_hp - damage*CABIN_DAMAGE_MULTIPLIER)
     _sync_structure_visuals()
     if base_hp <= 0.0:
         wood = maxi(0, wood - 10)
@@ -1306,7 +1348,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · CANDIDATA",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · " + _candidate_identity(),13,Color("#e6bb77"))
     var start_over := Button.new()
     start_over.text = "NUOVA PARTITA"
     start_over.custom_minimum_size = Vector2(150,28)
@@ -1370,6 +1412,14 @@ func _create_hud() -> void:
     guide.offset_left = 18
     guide.offset_top = -113
     guide.offset_bottom = -90
+    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: sposta inquadratura  •  Home: ricentra",12,Color("#fff0ce"))
+    camera_hint.add_theme_color_override("font_outline_color",Color("#17251c"))
+    camera_hint.add_theme_constant_override("outline_size",5)
+    camera_hint.anchor_top = 1
+    camera_hint.anchor_bottom = 1
+    camera_hint.offset_left = 18
+    camera_hint.offset_top = -135
+    camera_hint.offset_bottom = -114
 
 func _button(parent: Control, caption: String) -> Button:
     var button := Button.new()
@@ -1431,7 +1481,7 @@ func _update_occlusion(delta: float) -> void:
                 characters.append(enemy.global_position + Vector3.UP * 1.1)
         var eye: Vector3 = camera.global_position
         for mesh in occluders:
-            if not is_instance_valid(mesh) or not mesh.visible:
+            if not is_instance_valid(mesh) or not mesh.is_visible_in_tree():
                 continue
             var local_eye: Vector3 = mesh.global_transform.affine_inverse() * eye
             var bounds: AABB = mesh.get_aabb()
@@ -1452,7 +1502,7 @@ func _update_occlusion(delta: float) -> void:
         if not is_instance_valid(mesh):
             continue
         var id: int = mesh.get_instance_id()
-        var desired: float = .24 if occlusion_targets.has(id) else 1.0
+        var desired: float = _occlusion_opacity(mesh) if occlusion_targets.has(id) else 1.0
         var previous: float = float(occlusion_alpha.get(id,1.0))
         var current: float = move_toward(previous,desired,delta * 3.6)
         if current >= .999:
@@ -1755,3 +1805,17 @@ func _dress_landscape() -> void:
     _box(base_details,"Manico_vanga",Vector3(-3.8,.8,-5.5),Vector3(.065,1.2,.065),"#bf9a67",.18)
     _box(base_details,"Ferro_vanga",Vector3(-3.67,.23,-5.5),Vector3(.27,.34,.08),"#747e7b",.18)
     _register_occluders(base_details)
+
+func _occlusion_opacity(mesh: MeshInstance3D) -> float:
+    # Le fratture devono restare leggibili anche dal cortile durante l'occlusione.
+    return .65 if mesh.get_meta("damaged_structure",false) else .24
+
+func _candidate_identity() -> String:
+    if OS.has_feature("editor"):
+        return "SVILUPPO"
+    var path: String = OS.get_executable_path().get_base_dir().path_join("COMMIT.txt")
+    if FileAccess.file_exists(path):
+        var revision: String = FileAccess.get_file_as_string(path).strip_edges()
+        if revision.length() == 40 and revision.is_valid_hex_number():
+            return "CANDIDATA " + revision.left(7)
+    return "CANDIDATA"

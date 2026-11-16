@@ -121,3 +121,23 @@ Restano attivi tutti i test delle meccaniche gia' approvate dal tester.
 COLLAUDO RICHIESTO: breve verifica esclusivamente estetica dei tre stati,
 del crollo e del ripristino, con F3 e lo zoom normalmente usato dal tester.
 La nuova candidata si estrae in una nuova cartella; nessun merge in main.
+
+RIFINITURE DOPO IL COLLAUDO ESTETICO
+====================================
+- Animazione di locomozione basata sullo spostamento effettivo: contro un muro
+  si torna a Idle; lo scorrimento reale lungo la parete mantiene la camminata.
+- Legno fratturato visibile da entrambi i lati; l'occlusione conserva il 65%
+  di opacita' sui frammenti per mantenere leggibili i danni dal cortile.
+  Le varianti non visibili nell'albero non partecipano alla scansione.
+- Capanna: danni ricevuti moltiplicati per 0,35 (riduzione del 65%). HP massimi
+  ancora 150; nessun riscalamento degli HP esistenti o migrazione del JSON v8.
+- Rotella premuta e trascinamento: spostamento della visuale sul terreno,
+  limitato a 10 metri dal protagonista e ai margini del mondo. Il rilascio
+  conserva lo spostamento; Home ricentra. Rotella libera: zoom come prima.
+  Pan e zoom disponibili anche in pausa senza far avanzare la simulazione.
+  Il trascinamento non impartisce destinazioni al protagonista.
+- Il codice breve della candidata appare nel titolo e nell'intestazione,
+  letto da COMMIT.txt, per distinguere le cartelle senza cambiare i salvataggi.
+- Nuovi test fisici di movimento contro le collisioni reali, scorrimento,
+  controlli camera, limiti e pausa, resistenza e round trip HP, materiali
+  bifacciali e opacita' dei frammenti. Restano attivi gli altri test Godot.

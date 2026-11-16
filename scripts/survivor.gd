@@ -139,7 +139,7 @@ func _physics_process(delta: float) -> void:
             direction = direction.normalized()
             last_direction = direction
             visual.look_toward(direction,delta)
-    var moving_now: bool = direction.length_squared() > 0.01
+    var before_move: Vector3 = global_position
     var speed := 4.2 if dash_time <= 0.0 else 9.0
     velocity.x = direction.x * speed
     velocity.z = direction.z * speed
@@ -147,6 +147,9 @@ func _physics_process(delta: float) -> void:
     move_and_slide()
     global_position.x = clampf(global_position.x, -20.0, 20.0)
     global_position.z = clampf(global_position.z, -20.0, 20.0)
+    # L'intenzione di movimento non basta: contro un ostacolo si resta fermi.
+    var moved := Vector2(global_position.x-before_move.x,global_position.z-before_move.z)
+    var moving_now: bool = moved.length() > maxf(delta,.001)*.12
     if action_timer <= 0.0:
         visual.play_clip("Walk" if moving_now else "Idle", 1.15)
     var enemy = game.closest_enemy(global_position, 1.95)

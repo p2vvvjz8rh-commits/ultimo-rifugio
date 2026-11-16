@@ -11,6 +11,7 @@ var light_damage: Node3D
 var heavy_damage: Node3D
 var rubble: Node3D
 var last_bar_hp: int = -1
+var fracture_materials: Dictionary = {}
 
 func configure(kind: String, maximum: float, local_position: Vector3) -> void:
     structure_kind = kind
@@ -102,7 +103,16 @@ func _jagged_piece(parent: Node3D, dimensions: Vector3, at: Vector3, material: M
     surface.generate_normals()
     var model := MeshInstance3D.new()
     model.mesh = surface.commit()
-    model.material_override = material
+    if material is StandardMaterial3D:
+        var key: int = material.get_instance_id()
+        if not fracture_materials.has(key):
+            var fracture: StandardMaterial3D = material.duplicate()
+            fracture.cull_mode = BaseMaterial3D.CULL_DISABLED
+            fracture_materials[key] = fracture
+        model.material_override = fracture_materials[key]
+    else:
+        model.material_override = material
+    model.set_meta("damaged_structure",true)
     model.position = at
     parent.add_child(model)
     return model
