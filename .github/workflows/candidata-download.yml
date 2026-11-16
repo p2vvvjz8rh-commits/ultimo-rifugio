@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: ee5c659ee19145bd0298bace236ffeddd29d6e63
-      CANDIDATE_TAG: candidata-base-visuale-ee5c659
-      VERIFIED_RUN: '43924712760'
+      CANDIDATE_SHA: e4c25fa50853d313b8e7abcab3a67e381a830038
+      CANDIDATE_TAG: candidata-orbita-e4c25fa
+      VERIFIED_RUN: '43928443335'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-ee5c659ee19145bd0298bace236ffeddd29d6e63
-          run-id: 43924712760
+          name: UltimoRifugio-candidata-Windows-e4c25fa50853d313b8e7abcab3a67e381a830038
+          run-id: 43928443335
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-candidata-base-visuale-ee5c659.zip')
+          archive = pathlib.Path('UltimoRifugio-candidata-orbita-e4c25fa.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -63,21 +63,23 @@ jobs:
           fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
-          Pacchetto separato per il collaudo di movimento, inquadratura e visibilita delle costruzioni.
+          Pacchetto separato per il collaudo della camera orbitale a 360 gradi.
 
           Scarica lo ZIP, estrai tutti i file in una NUOVA cartella e apri AVVIA_CANDIDATA.bat.
           Prova il movimento contro i muri, i danni visti dal cortile e la resistenza della capanna.
-          Tieni premuta la rotella e trascina per spostare la visuale; Home ricentra, rotella libera mantiene lo zoom.
-          Pan e zoom sono disponibili anche in pausa.
+          Tieni premuta la rotella e trascina: orizzontale ruota a 360 gradi attorno al protagonista, verticale inclina.
+          Home ripristina la visuale iniziale; la rotella libera mantiene lo zoom.
+          WASD segue la camera ruotata, mentre il clic di movimento resta coerente col punto indicato.
+          Orbita e zoom sono disponibili anche in pausa; nessuna traslazione laterale.
 
-          Stessi file della candidata ee5c659 gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
+          Stessi file della candidata e4c25fa gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
           Capanna: danni ricevuti ridotti del 65%, HP massimi e salvataggi v8 invariati.
           Conservate le meccaniche precedentemente collaudate di cancello, riparazioni e recupero.
           Conservare CANDIDATA_PORTATILE.txt per mantenere separati i dati del collaudo.
 
           Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-base-visuale-ee5c659.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-orbita-e4c25fa.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Candidata base e visuale ee5c659 — solo collaudo' \
+            --prerelease --latest=false --title 'Candidata orbita 360 gradi e4c25fa — solo collaudo' \
             --notes-file note-candidata.txt
