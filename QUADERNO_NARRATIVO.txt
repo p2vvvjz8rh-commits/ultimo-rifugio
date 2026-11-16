@@ -1,0 +1,47 @@
+ULTIMO RIFUGIO - QUADERNO NARRATIVO
+====================================
+APPUNTI DI TRAMA E PROGRESSIONE - NON IMPLEMENTARE SENZA NUOVA DECISIONE
+
+IDEA ORIGINALE DELL'UTENTE
+- Dietro l'invasione zombie potrebbe esserci una regia, una forza o un'organizzazione.
+  Il responsabile non e' ancora stato definito; il mistero si scopre progressivamente.
+- La partita attuale si svolge in una foresta ancora al 100% naturale, pur con
+  la presenza di zombie.
+- Dopo una fase di sviluppo della base il protagonista riceve un segnale che
+  lo conduce in un territorio successivo, corrotto indicativamente al 25%.
+- Il sistema di livelli conduce in territori via via piu' ostili e contaminati.
+  In ciascuno si ricomincia a costruire una base, fino alla zona completamente
+  corrotta da cui nasce l'invasione.
+- La progressione potrebbe essere 0%, 25%, 50%, 75%, 100% di corruzione,
+  MA cinque aree e percentuali esatte rimangono una PROPOSTA dell'assistente.
+
+NUOVA DECISIONE DELL'UTENTE: MOTIVAZIONI DIFFERENTI PER SPOSTARSI
+- Non vogliamo cambiare zona sempre per la stessa ragione.
+- In una delle zone successive, NON necessariamente nella prima, si deve essere
+  costretti a partire perche' le risorse locali si stanno esaurendo.
+- Gli spostamenti possono dipendere in occasioni diverse da:
+  A. Un segnale radio, indizi o nuove coordinate che spingono a indagare;
+  B. La corruzione che avanza e rende una base insicura;
+  C. L'esaurimento graduale di legno, cibo, materiali o altre risorse;
+  D. Scoperte, missioni o eventi narrativi rilevanti.
+- La successione esatta dei motivi e le singole tappe NON sono decise.
+
+PROPOSTE DA VALUTARE PIU' AVANTI
+- Il giocatore ricostruisce da zero le strutture, ma non perde necessariamente
+  tutto: potrebbe portare con se' equipaggiamento, progetti, conoscenze o
+  compagni; decidere piu' avanti cosa resta.
+- Le vecchie basi potrebbero restare raggiungibili: ipotesi aperta.
+- La corruzione dovrebbe influenzare ambiente, disponibilita' delle risorse e
+  meccaniche, non soltanto l'aspetto estetico.
+- La stazione radio attuale puo' diventare il primo indizio di una trama
+  graduale fatta di messaggi disturbati, coordinate, richieste d'aiuto e
+  segreti. Ipotesi, non ancora storia definitiva.
+- Non decidere ora chi c'e' dietro l'invasione.
+- Le motivazioni 'ricerca della verita'' e 'necessita' di sopravvivere'
+  possono coesistere e alternarsi tra i capitoli.
+- Dare una ragione concreta a ogni cambio di zona e farlo percepire
+  attraverso eventi nel gioco, evitando trasferimenti arbitrari.
+
+STATUS
+Questi sono APPUNTI, non requisiti da implementare ora.
+Le idee attribuite all'utente non vanno confuse con i suggerimenti dell'assistente.
