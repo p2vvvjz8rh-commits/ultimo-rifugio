@@ -1,0 +1,79 @@
+name: Download stabile della candidata estetica verificata
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/candidata-download.yml]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  download-stabile:
+    if: github.repository == 'p2vvvjz8rh-commits/ultimo-rifugio' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'sviluppo-agenti'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_SHA: f5f7cdf061c8c223229c5e6fc44d9e17ab159e36
+      CANDIDATE_TAG: candidata-estetica-f5f7cdf
+      VERIFIED_RUN: '43888751494'
+    steps:
+      - name: Verifica provenienza e controlli della candidata originale
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN" --jq .head_sha)" = "$CANDIDATE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN" --jq .conclusion)" = success
+      - name: Recupera esattamente il pacchetto gia collaudato automaticamente
+        uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-candidata-Windows-f5f7cdf061c8c223229c5e6fc44d9e17ab159e36
+          run-id: 43888751494
+          github-token: ${{ github.token }}
+          path: candidata
+      - name: Verifica file e crea lo ZIP
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import pathlib, hashlib, os, zipfile
+          folder = pathlib.Path('candidata')
+          assert (folder/'COMMIT.txt').read_text().strip() == os.environ['CANDIDATE_SHA']
+          assert (folder/'CANDIDATA_PORTATILE.txt').is_file()
+          for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
+              digest, name = line.split(maxsplit=1)
+              assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
+          archive = pathlib.Path('UltimoRifugio-candidata-estetica-f5f7cdf.zip')
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+              for item in sorted(folder.iterdir()):
+                  assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
+                  bundle.write(item, item.name)
+          with zipfile.ZipFile(archive) as bundle:
+              assert bundle.testzip() is None
+          PY
+      - name: Rendi scaricabile la candidata senza modificare main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if gh release view "$CANDIDATE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'La prerelease esiste gia: non viene sovrascritta.'
+            exit 0
+          fi
+          cat > note-candidata.txt <<'NOTES'
+          Pacchetto separato per il breve collaudo estetico di mura, cancello, rifugio e banco.
+
+          Scarica lo ZIP, estrai tutti i file in una NUOVA cartella e apri AVVIA_CANDIDATA.bat.
+          F3: Simula danni una volta, due volte, tre volte; poi Ripara tutto (test).
+
+          Stessi file della candidata f5f7cdf gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
+          Le meccaniche gia collaudate e il formato dei salvataggi restano invariati.
+          Conservare CANDIDATA_PORTATILE.txt per mantenere separati i dati del collaudo.
+
+          Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
+          NOTES
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-estetica-f5f7cdf.zip \
+            --repo "$GITHUB_REPOSITORY" --target "$CANDIDATE_SHA" \
+            --prerelease --latest=false --title 'Candidata estetica f5f7cdf — solo collaudo' \
+            --notes-file note-candidata.txt
