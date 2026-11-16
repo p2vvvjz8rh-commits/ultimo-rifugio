@@ -13,7 +13,10 @@ const BENCH_REPAIR_AMOUNT := 100.0
 const BENCH_HP_MAX := 130.0
 const CABIN_HP_MAX := 150.0
 const CABIN_DAMAGE_MULTIPLIER := .35
-const CAMERA_PAN_LIMIT := 10.0
+const CAMERA_ORBIT_RADIUS := 22.0
+const CAMERA_DEFAULT_PITCH := deg_to_rad(40.0)
+const CAMERA_MIN_PITCH := deg_to_rad(20.0)
+const CAMERA_MAX_PITCH := deg_to_rad(75.0)
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -32,7 +35,11 @@ var wall_segments: Array[Dictionary] = []
 var gate_hp: float = GATE_HP_MAX
 var gate_indicator: Label3D
 var camera_distance: float = 1.0
-var camera_pan := Vector3.ZERO
+var camera_yaw: float = 0.0
+var camera_pitch: float = CAMERA_DEFAULT_PITCH
+var camera_yaw_current: float = 0.0
+var camera_pitch_current: float = CAMERA_DEFAULT_PITCH
+var camera_radius_current: float = CAMERA_ORBIT_RADIUS
 var camera_focus := Vector3.ZERO
 var camera_dragging: bool = false
 var enemy_indicator_root: Control
@@ -159,13 +166,14 @@ func _input(event: InputEvent) -> void:
         get_viewport().set_input_as_handled()
         return
     if event is InputEventMouseMotion and camera_dragging:
-        _pan_camera(event.relative)
+        _orbit_camera(event.relative)
         get_viewport().set_input_as_handled()
         return
     if event is InputEventKey and event.pressed and not event.echo:
         match event.keycode:
             KEY_HOME:
-                camera_pan = Vector3.ZERO
+                camera_yaw = 0.0
+                camera_pitch = CAMERA_DEFAULT_PITCH
             KEY_ESCAPE:
                 paused = not paused
                 show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
@@ -497,34 +505,29 @@ func _create_radio_station() -> void:
 
 func _create_camera() -> void:
     camera = Camera3D.new()
-    camera.name = "Telecamera_inclinata"
+    camera.name = "Telecamera_orbitale"
     camera.current = true
     camera.fov = 47.0
-    camera_focus = hero.global_position
-    camera.position = camera_focus + Vector3(0, 14.5, 16.5) * camera_distance
+    camera_focus = hero.global_position+Vector3.UP*1.15
+    camera_radius_current = CAMERA_ORBIT_RADIUS*camera_distance
     add_child(camera)
-    camera.look_at(hero.global_position + Vector3(0, 1.15, -1.9), Vector3.UP)
+    _update_camera(1.0)
 
 func _update_camera(delta: float) -> void:
-    var target: Vector3 = hero.global_position + camera_pan
-    target.x = clampf(target.x,-WORLD_HALF,WORLD_HALF)
-    target.z = clampf(target.z,-WORLD_HALF,WORLD_HALF)
-    var weight: float = clampf(delta*3.0,0.0,1.0)
-    camera_focus = camera_focus.lerp(target,weight)
-    var desired: Vector3 = target + Vector3(0,14.5,16.5)*camera_distance
-    camera.global_position = camera.global_position.lerp(desired,weight)
-    camera.look_at(camera_focus+Vector3(0,1.15,-2.0),Vector3.UP)
+    camera_focus = camera_focus.lerp(hero.global_position+Vector3.UP*1.15,clampf(delta*3.0,0.0,1.0))
+    var weight: float = clampf(delta*10.0,0.0,1.0)
+    camera_yaw_current = wrapf(lerp_angle(camera_yaw_current,camera_yaw,weight),-PI,PI)
+    camera_pitch_current = lerpf(camera_pitch_current,camera_pitch,weight)
+    camera_radius_current = lerpf(camera_radius_current,CAMERA_ORBIT_RADIUS*camera_distance,weight)
+    var horizontal: float = cos(camera_pitch_current)*camera_radius_current
+    var offset := Vector3(sin(camera_yaw_current)*horizontal,sin(camera_pitch_current)*camera_radius_current,cos(camera_yaw_current)*horizontal)
+    # La posizione viene calcolata sull'orbita: niente scorciatoie attraverso il centro.
+    camera.global_position = camera_focus+offset
+    camera.look_at(camera_focus,Vector3.UP)
 
-func _pan_camera(relative: Vector2) -> void:
-    var center: Vector2 = get_viewport().get_visible_rect().size*.5
-    var plane := Plane(Vector3.UP,0)
-    var before = plane.intersects_ray(camera.project_ray_origin(center),camera.project_ray_normal(center))
-    var after = plane.intersects_ray(camera.project_ray_origin(center+relative),camera.project_ray_normal(center+relative))
-    if before == null or after == null:
-        return
-    camera_pan += before-after
-    camera_pan.y = 0
-    camera_pan = camera_pan.limit_length(CAMERA_PAN_LIMIT)
+func _orbit_camera(relative: Vector2) -> void:
+    camera_yaw = wrapf(camera_yaw-relative.x*.006,-PI,PI)
+    camera_pitch = clampf(camera_pitch+relative.y*.004,CAMERA_MIN_PITCH,CAMERA_MAX_PITCH)
 
 func _spawn_initial_enemies() -> void:
     # Presenze vicine ma fuori dal cortile: visibili anche prima della prima orda.
@@ -1412,7 +1415,7 @@ func _create_hud() -> void:
     guide.offset_left = 18
     guide.offset_top = -113
     guide.offset_bottom = -90
-    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: sposta inquadratura  •  Home: ricentra",12,Color("#fff0ce"))
+    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: ruota a 360°  •  Home: ricentra",12,Color("#fff0ce"))
     camera_hint.add_theme_color_override("font_outline_color",Color("#17251c"))
     camera_hint.add_theme_constant_override("outline_size",5)
     camera_hint.anchor_top = 1

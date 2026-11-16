@@ -28,7 +28,7 @@ Progetto Godot 4.x per Windows con aggiornamento automatico via GitHub. Lo svilu
 - Cache `.godot/`, eseguibili, file temporanei, log e salvataggi locali non devono entrare nei commit.
 
 ## Regole di gameplay già stabilite
-- Controlli: movimento WASD/mouse, E banco, B costruzione/riparazione, T avvio orda test, F3 pannello test, N nuova partita, R radio.
+- Controlli: movimento WASD/mouse, E banco, B costruzione/riparazione, T avvio orda test, F3 pannello test, N nuova partita, R radio. Rotella premuta e trascinamento: orbita a 360 gradi; Home ripristina la visuale. WASD segue la camera ruotata, rotella libera mantiene lo zoom.
 - Non aggiungere adesso sistemi pesanti di fame/sete, gestione complessa della squadra o nuovi tipi di zombie senza motivazione e test.
 - Difese aggiuntive (trappole, percorsi, buche): **rinviate** finché la base non sarà sufficientemente ampia.
 - Tutte le costruzioni hanno salute autonoma, barre sotto il 100%, tre condizioni geometriche (integro, danneggiato, grave) e crollo riconoscibile a zero.

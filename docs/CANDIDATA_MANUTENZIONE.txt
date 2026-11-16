@@ -141,3 +141,20 @@ RIFINITURE DOPO IL COLLAUDO ESTETICO
 - Nuovi test fisici di movimento contro le collisioni reali, scorrimento,
   controlli camera, limiti e pausa, resistenza e round trip HP, materiali
   bifacciali e opacita' dei frammenti. Restano attivi gli altri test Godot.
+
+CORREZIONE DEL COMANDO ROTELLA: CAMERA ORBITALE
+==============================================
+La richiesta del tester e' una rotazione completa, non una traslazione.
+- Rotella premuta + trascinamento orizzontale: orbita continua a 360 gradi
+  intorno al protagonista. Il trascinamento verticale inclina la camera
+  fra 20 e 75 gradi, senza ribaltarla o portarla sotto il terreno.
+- Home ripristina orientamento e inclinazione iniziali; lo zoom resta quello
+  scelto. Pan laterale rimosso. Zoom e orbita funzionano anche in pausa.
+- WASD segue l'orientamento effettivo della camera, mentre le destinazioni
+  del mouse rimangono correttamente nello spazio del mondo.
+- Raggio e centro dell'orbita sono mantenuti durante la transizione: non si
+  interpola una corda attraverso il protagonista. Passaggio +/-PI continuo.
+- Nessuna modifica a collisioni, danni, riparazioni o formato dei salvataggi.
+- Test aggiornati: quattro quadranti, centro proiettato, raggio costante,
+  transizione di 180 gradi, attraversamento 360, inclinazione, Home, pausa,
+  zoom e movimento W con camera ruotata di 90 gradi.

@@ -51,7 +51,8 @@ assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
     'COLLAUDO RICHIESTO: animazione contro muri e scorrimento lungo i lati,\n'
     'danni della palizzata visti dal cortile, resistenza della capanna.\n'
-    'Rotella premuta + trascinamento sposta la visuale, Home la ricentra.\n'
+    'Rotella premuta + trascinamento ruota a 360 gradi e inclina la camera.\n'
+    'Home ripristina la visuale iniziale; WASD segue la camera ruotata.\n'
     'Lo scorrimento della rotella mantiene lo zoom, anche in pausa.\n'
     'Esportata con Godot 4.7.2 da Linux. Avvio Windows da collaudare.\n',encoding='utf-8')
 PY

@@ -116,6 +116,9 @@ func _physics_process(delta: float) -> void:
         direction.x -= 1.0
     if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
         direction.x += 1.0
+    # WASD segue l'orientamento effettivo della camera; le destinazioni mouse restano nel mondo.
+    if direction.length_squared() > .1:
+        direction = direction.rotated(Vector3.UP,game.camera_yaw_current)
     if direction.length_squared() < 0.1 and mouse_has_destination:
         var delta_goal := mouse_destination - global_position
         delta_goal.y = 0.0

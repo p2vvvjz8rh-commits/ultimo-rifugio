@@ -41,10 +41,30 @@ func run() -> void:
     var motion := InputEventMouseMotion.new()
     motion.relative = Vector2(120,-60)
     game._input(motion)
-    check(game.camera_pan.length() > .1 and game.camera_pan.length() <= game.CAMERA_PAN_LIMIT+.001,"Trascinamento rotella sposta l'inquadratura entro il limite")
+    check(absf(game.camera_yaw) > .1 and game.camera_pitch != game.CAMERA_DEFAULT_PITCH,"Rotella premuta ruota e inclina la camera")
     for drag in range(10):
-        game._pan_camera(Vector2(1000,1000))
-    check(game.camera_pan.length() <= game.CAMERA_PAN_LIMIT+.001,"Limite mantenuto anche dopo trascinamenti ripetuti")
+        game._orbit_camera(Vector2(1000,1000))
+    check(game.camera_pitch <= game.CAMERA_MAX_PITCH and game.camera_pitch >= game.CAMERA_MIN_PITCH,"Inclinazione limitata senza ribaltamenti")
+    game.camera_pitch = game.CAMERA_DEFAULT_PITCH
+    for angle in [0.0,PI*.5,PI,-PI*.5]:
+        game.camera_yaw = angle
+        game._update_camera(1)
+        var offset: Vector3 = game.camera.global_position-game.camera_focus
+        check(is_equal_approx(offset.length(),game.CAMERA_ORBIT_RADIUS*game.camera_distance),"Orbita mantiene la distanza in tutti i quadranti")
+        var projected: Vector2 = game.camera.unproject_position(game.camera_focus)
+        var center: Vector2 = game.get_viewport().get_visible_rect().size*.5
+        check(projected.distance_to(center) < 2,"Il protagonista resta al centro durante il giro completo")
+    game.camera_yaw = 0
+    game._update_camera(1)
+    game.camera_yaw = PI
+    for frame in range(60):
+        game._update_camera(1.0/60)
+        check(game.camera.global_position.distance_to(game.camera_focus) > game.CAMERA_ORBIT_RADIUS*game.camera_distance*.99,"La transizione non attraversa il protagonista")
+    game.camera_yaw = PI-.01
+    game.camera_yaw_current = PI-.01
+    game._orbit_camera(Vector2(-10,0))
+    game._update_camera(.01)
+    check(absf(angle_difference(PI-.01,game.camera_yaw_current)) < .1,"Passaggio attraverso 360 gradi continuo")
     var left := InputEventMouseButton.new()
     left.button_index = MOUSE_BUTTON_LEFT
     left.pressed = true
@@ -58,13 +78,13 @@ func run() -> void:
     home.keycode = KEY_HOME
     home.pressed = true
     game._input(home)
-    check(game.camera_pan == Vector3.ZERO,"Home ricentra la visuale")
+    check(game.camera_yaw == 0 and game.camera_pitch == game.CAMERA_DEFAULT_PITCH,"Home ripristina orientamento e inclinazione")
     game.paused = true
-    game.camera_pan = Vector3(3,0,4)
-    var previous_focus: Vector3 = game.camera_focus
+    game.camera_yaw = PI*.5
+    var previous_position: Vector3 = game.camera.global_position
     var elapsed: float = game.elapsed
     game._process(.2)
-    check(not game.camera_focus.is_equal_approx(previous_focus) and game.elapsed == elapsed,"In pausa la camera si muove senza avanzare il gioco")
+    check(not game.camera.global_position.is_equal_approx(previous_position) and game.elapsed == elapsed,"In pausa la camera ruota senza avanzare il gioco")
     var zoom_before: float = game.camera_distance
     var wheel := InputEventMouseButton.new()
     wheel.button_index = MOUSE_BUTTON_WHEEL_UP
@@ -72,6 +92,20 @@ func run() -> void:
     game._unhandled_input(wheel)
     check(game.camera_distance < zoom_before,"La rotella mantiene lo zoom anche in pausa")
     game.paused = false
+    game.camera_yaw_current = PI*.5
+    game.hero.position = Vector3(12,.13,12)
+    game.hero.set_physics_process(true)
+    var key := InputEventKey.new()
+    key.keycode = KEY_W
+    key.physical_keycode = KEY_W
+    key.pressed = true
+    Input.parse_input_event(key)
+    for frame in range(20):
+        await physics_frame
+    key.pressed = false
+    Input.parse_input_event(key)
+    game.hero.set_physics_process(false)
+    check(game.hero.position.x < 11.5 and absf(game.hero.position.z-12) < .1,"W avanza rispetto alla camera ruotata, non rispetto al nord del mondo")
     game.base_hp = game.CABIN_HP_MAX
     game.damage_base(20)
     check(is_equal_approx(game.base_hp,143.0),"Capanna: danno ridotto del 65%, HP massimi invariati")
