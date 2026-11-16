@@ -31,8 +31,30 @@ if ! "$GODOT" --headless --path . --quit-after 15 >"$work/scene.log" 2>&1; then
   cat "$work/scene.log"; exit 1
 fi
 cat "$work/scene.log"
-if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/import.log" "$work/scene.log"; then
+echo "== Salvataggio: validita' file partita.json =="
+SAVE_PATH="$(find "$XDG_DATA_HOME" "$HOME" -type f -name partita.json -print -quit)"
+if [[ -z "$SAVE_PATH" ]]; then
+  echo "Il gioco non ha scritto partita.json nella directory dati isolata." >&2
+  exit 1
+fi
+python3 - "$SAVE_PATH" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as stream:
+    data = json.load(stream)
+assert data.get("version") == 8, "Versione salvataggio inattesa"
+for key in ("px", "pz", "hp", "wood", "coins", "base_hp", "gate_hp", "bench_hp", "wall_hp"):
+    assert key in data, f"Campo di salvataggio mancante: {key}"
+assert isinstance(data["wall_hp"], list), "wall_hp non e' un array"
+print("OK: salvataggio JSON valido e completo")
+PY
+echo "== Godot: riapertura del salvataggio =="
+if ! "$GODOT" --headless --path . --quit-after 15 >"$work/reload.log" 2>&1; then
+  cat "$work/reload.log"; exit 1
+fi
+cat "$work/reload.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/import.log" "$work/scene.log" "$work/reload.log"; then
   echo "Controllo fallito: errori di script o risorse rilevati." >&2
   exit 1
 fi
-echo "OK: importazione e avvio headless senza errori noti."
+echo "OK: importazione, avvio, salvataggio JSON e riapertura senza errori noti."
