@@ -1,0 +1,50 @@
+ULTIMO RIFUGIO - CANDIDATA TECNICA: ACCESSO E MANUTENZIONE BASE
+============================================================
+Ramo: sviluppo-agenti. PR 1 in bozza. Nessuna pubblicazione su main.
+Alfa 13 resta la versione distribuita. Nessuna modifica narrativa.
+
+GAMEPLAY
+- Il cancello aperto per il protagonista conserva un blocco fisico per gli
+  zombie. A zero HP il varco diventa attraversabile; ripararlo ripristina
+  il blocco. Gli zombie attirati dal protagonista possono attaccare le difese.
+- E vicino al banco: comando Ripara tutto, ripristino completo per 18 legno,
+  stesso prezzo della riparazione generale gia' disponibile con B.
+- Clic destro su una struttura: ispezione della salute e riparazione mirata.
+  Ogni sezione della palizzata e' indipendente e selezionabile anche distrutta.
+  Serve essere entro 4,4 metri dal centro della struttura; 8 legno per
+  riparazione (fino a 100 HP), 12 per il rifugio (fino a 75 HP),
+  8 per il banco (fino a 65 HP). Il banco si puo' ricostruire manualmente.
+- Distanza, risorse e stato del banco sono ricontrollati alla conferma.
+- Le strutture integre non consumano legno. B rimane disponibile.
+
+VERIFICHE AUTOMATICHE
+Comando: GODOT_BIN=<Godot 4.7.2 Linux> bash tools/VERIFICA_LINUX.sh
+Il comando rifiuta versioni diverse dalla 4.7.2 stable.
+Dati XDG temporanei, nessun salvataggio reale utilizzato.
+- Import, scena per 15 frame, JSON v8, riapertura, scansione errori.
+- tests/base_maintenance.gd: collisioni differenziate, cancello distrutto,
+  attacco zombie attirato, selezione con raggio mouse, riparazione mirata,
+  costi, distanza, ripristino totale e collisioni, persistenza HP indipendenti.
+- Fixture v8 precedente senza campi opzionali: risorse, HP protagonista,
+  scala precedente del cancello e valori di default.
+Questi controlli non certificano rendering o esecuzione Windows.
+
+COLLAUDO NECESSARIO PRIMA DEL MERGE
+- Compilazione/esportazione con Godot 4.7.2 e avvio effettivo su Windows.
+- Tester: attraversare il cancello in entrambi i sensi con zombie alle spalle,
+  verificare attacco, distruzione e successiva riparazione durante un'orda.
+- Tester: clic destro su ciascuna sezione, banco e rifugio, verificare
+  leggibilita', selezione con zoom e occlusioni, raggiungibilita' del banco.
+- Provare una COPIA di una partita Alfa 13 Windows e controllare il progresso
+  dopo salvataggio, chiusura e riavvio. Non usare l'unica copia della partita.
+La candidata non e' ancora una nuova versione giocabile distribuita.
+
+PROSSIMO TRAGUARDO
+Revisione estetica del deterioramento e miglioramento di ambiente/esplorazione.
+Non inclusi qui; difese avanzate e percorsi obbligati restano rinviati.
+
+RIPRISTINO
+main e la cronologia di Alfa 13 restano intatti.
+Base tecnica prima di questo ciclo: 5a1710b0c5cef9f43f007fb7a075463e11a489cb.
+Per annullare il ciclo usare un revert del relativo commit su sviluppo-agenti,
+non un reset forzato. Nessuna migrazione del formato v8.

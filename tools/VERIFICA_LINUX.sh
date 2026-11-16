@@ -13,14 +13,18 @@ if [[ ! -f project.godot || ! -f scenes/World.tscn ]]; then
 fi
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-# Usa un HOME temporaneo, per non leggere o sovrascrivere salvataggi locali.
-export HOME="$work/home"
+# Usa directory XDG temporanee per isolare i salvataggi.
 export XDG_DATA_HOME="$work/xdg-data"
 export XDG_CONFIG_HOME="$work/xdg-config"
 export XDG_CACHE_HOME="$work/xdg-cache"
-mkdir -p "$HOME" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
+mkdir -p "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_CACHE_HOME"
 echo "== Godot: versione =="
-"$GODOT" --version
+engine_version="$("$GODOT" --version)"
+echo "$engine_version"
+if [[ "$engine_version" != 4.7.2.stable.* ]]; then
+  echo "Richiesto Godot 4.7.2 stable." >&2
+  exit 2
+fi
 echo "== Godot: importazione asset =="
 if ! "$GODOT" --headless --path . --editor --import >"$work/import.log" 2>&1; then
   cat "$work/import.log"; exit 1
@@ -32,7 +36,7 @@ if ! "$GODOT" --headless --path . --quit-after 15 >"$work/scene.log" 2>&1; then
 fi
 cat "$work/scene.log"
 echo "== Salvataggio: validita' file partita.json =="
-SAVE_PATH="$(find "$XDG_DATA_HOME" "$HOME" -type f -name partita.json -print -quit)"
+SAVE_PATH="$(find "$XDG_DATA_HOME" -type f -name partita.json -print -quit)"
 if [[ -z "$SAVE_PATH" ]]; then
   echo "Il gioco non ha scritto partita.json nella directory dati isolata." >&2
   exit 1
@@ -58,3 +62,12 @@ if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/i
   exit 1
 fi
 echo "OK: importazione, avvio, salvataggio JSON e riapertura senza errori noti."
+
+echo "== Godot: regressioni manutenzione e salvataggi legacy =="
+if ! "$GODOT" --headless --path . --script tests/base_maintenance.gd >"$work/maintenance.log" 2>&1; then
+  cat "$work/maintenance.log"; exit 1
+fi
+cat "$work/maintenance.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/maintenance.log"; then
+  exit 1
+fi

@@ -20,7 +20,7 @@ func configure(parent_game: Node3D, zombie_variant: String, wave_zombie: bool) -
     from_wave = wave_zombie
     name = "Zombie_" + variant
     collision_layer = 2
-    collision_mask = 1
+    collision_mask = 5
     var collider := CollisionShape3D.new()
     var capsule := CapsuleShape3D.new()
     capsule.radius = 0.38 if variant != "brute" else 0.62
@@ -80,7 +80,7 @@ func _physics_process(delta: float) -> void:
     if (player_distance < 4.4 or hears_noise) and game.has_clear_path(global_position, game.hero.global_position):
         target_point = game.hero.global_position
         attack_player = true
-    elif from_wave:
+    elif from_wave or ((player_distance < 4.4 or hears_noise) and game.stockade_built):
         target_point = game.defense_target(global_position)
         base_target = true
     else:

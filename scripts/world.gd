@@ -23,6 +23,8 @@ var fence_root: Node3D
 var gate_left: Node3D
 var gate_right: Node3D
 var gate_left_collision: CollisionShape3D
+var gate_barrier: CollisionShape3D
+var manual_target: String = ""
 var gate_right_collision: CollisionShape3D
 var wall_segments: Array[Dictionary] = []
 var gate_hp: float = GATE_HP_MAX
@@ -163,6 +165,10 @@ func _input(event: InputEvent) -> void:
 func _unhandled_input(event: InputEvent) -> void:
     # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
     if event is InputEventMouseButton and event.pressed and not paused:
+        if event.button_index == MOUSE_BUTTON_RIGHT:
+            _inspect_structure(event.position)
+            get_viewport().set_input_as_handled()
+            return
         if event.button_index == MOUSE_BUTTON_WHEEL_UP:
             camera_distance = maxf(0.62, camera_distance - 0.10)
             get_viewport().set_input_as_handled()
@@ -482,7 +488,7 @@ func _spawn_enemy(at: Vector3, variant: String, wave: bool) -> void:
     enemies.append(mob)
 
 func has_clear_path(from_point: Vector3, to_point: Vector3) -> bool:
-    var query := PhysicsRayQueryParameters3D.create(from_point+Vector3.UP*1.0,to_point+Vector3.UP*1.0,1)
+    var query := PhysicsRayQueryParameters3D.create(from_point+Vector3.UP*1.0,to_point+Vector3.UP*1.0,5)
     var collision: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
     return collision.is_empty()
 
@@ -828,6 +834,7 @@ func _use_repair_bench() -> void:
     if hero.global_position.distance_to(repair_bench.global_position) > 4.4:
         show_message("Avvicinati al banco nel cortile, poi premi E.",2.0)
         return
+    manual_target = ""
     _refresh_repair_menu()
     repair_popup.popup_centered()
 
@@ -854,6 +861,11 @@ func _refresh_repair_menu() -> void:
         var selected: String = str(item["type"])
         option.pressed.connect(func(): _repair_selected(selected))
         body.add_child(option)
+    var all_option := Button.new()
+    all_option.text = "Ripara tutto completamente | %d legno" % REPAIR_COST
+    all_option.disabled = not _has_damaged_defenses() or wood < REPAIR_COST
+    all_option.pressed.connect(_repair_all_at_bench)
+    body.add_child(all_option)
     var close := Button.new()
     close.text = "Chiudi"
     close.pressed.connect(func(): repair_popup.hide())
@@ -867,12 +879,23 @@ func _max_wall_damage() -> float:
 
 func _repair_selected(kind: String) -> void:
     var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
-    if wood < cost or bench_hp <= 0.0:
+    var manual: bool = manual_target != ""
+    var location: Vector3 = _manual_position(kind) if manual else repair_bench.global_position
+    if paused or wood < cost or hero.global_position.distance_to(location) > 4.4 or (manual and kind != manual_target) or (not manual and bench_hp <= 0.0):
         repair_popup.hide()
         return
     var applied: float = 0.0
     var repaired_name: String = ""
     var feedback_position: Vector3 = _structure_position(kind)
+    if kind.begins_with("wall:"):
+        var index: int = int(kind.get_slice(":",1))
+        if index < 0 or index >= wall_segments.size():
+            return
+        var section: Dictionary = wall_segments[index]
+        applied = minf(WALL_HP_MAX-float(section["hp"]),BENCH_REPAIR_AMOUNT)
+        section["hp"] = float(section["hp"]) + applied
+        repaired_name = str(section["name"])
+        feedback_position = section["position"] + Vector3.UP
     match kind:
         "wall":
             var target: Dictionary = {}
@@ -979,6 +1002,16 @@ func _build_stockade() -> void:
     _wall_collision("Parete_frontale_sinistra", Vector3(-3.4,1.12,front_z), Vector3(3.8,2.24,.50))
     _wall_collision("Parete_frontale_destra", Vector3(3.4,1.12,front_z), Vector3(3.8,2.24,.50))
     # Anche le ante hanno collider, legati allo stesso nodo che ruota.
+    var barrier_body := StaticBody3D.new()
+    barrier_body.collision_layer = 4 # Blocco fisso riservato agli zombie.
+    barrier_body.collision_mask = 0
+    fence_root.add_child(barrier_body)
+    gate_barrier = CollisionShape3D.new()
+    var barrier_shape := BoxShape3D.new()
+    barrier_shape.size = Vector3(2.88,2.6,.3)
+    gate_barrier.shape = barrier_shape
+    gate_barrier.position = Vector3(0,1.3,4)
+    barrier_body.add_child(gate_barrier)
     gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.72,1.03,0.0))
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.72,1.03,0.0))
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
@@ -1067,8 +1100,8 @@ func defense_target(from_position: Vector3) -> Vector3:
         return Vector3(0.0,0.0,-3.6)
     if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
         return Vector3(0.0,0.0,-3.6)
-    if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
-        return Vector3(0.0,0.0,5.05)
+    if from_position.z > 3.45 and absf(from_position.x) < 1.35:
+        return Vector3(0.0,0.0,5.05) if not gate_broken else Vector3(0.0,0.0,2.5)
     # Una breccia permette il passaggio, ma solo in quel tratto.
     var breach_distance: float = 7.0
     var breach_target: Vector3 = Vector3.ZERO
@@ -1160,7 +1193,9 @@ func _gate_collision(leaf: Node3D, title: String, offset: Vector3) -> CollisionS
     return collider
 
 func _sync_gate_collision(is_open: bool) -> void:
-    # Disabilita soltanto le ante, mai i cinque blocchi delle mura.
+    if is_instance_valid(gate_barrier):
+        gate_barrier.set_deferred("disabled", gate_broken or gate_hp <= 0.0)
+    # Le ante animate bloccano il protagonista solo da chiuse.
     var blocking: bool = not is_open and not gate_broken
     if is_instance_valid(gate_left_collision):
         gate_left_collision.set_deferred("disabled", not blocking)
@@ -1323,7 +1358,7 @@ func _create_hud() -> void:
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
     _create_test_panel(root)
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   R: radio   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: banco   •   Clic destro: ispeziona/ripara   •   R: radio   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
@@ -1596,3 +1631,80 @@ func _load_progress() -> void:
 func _exit_tree() -> void:
     if not skip_save_on_exit and is_instance_valid(hero):
         _save_progress()
+
+func _repair_all_at_bench() -> void:
+    if paused or bench_hp <= 0.0 or hero.global_position.distance_to(repair_bench.global_position) > 4.4:
+        repair_popup.hide()
+        return
+    _build_or_repair()
+    repair_popup.hide()
+
+func _manual_position(kind: String) -> Vector3:
+    if kind.begins_with("wall:"):
+        return wall_segments[int(kind.get_slice(":",1))]["position"]
+    if kind == "gate":
+        return Vector3(0,0,4)
+    if kind == "bench":
+        return repair_bench.global_position
+    return Vector3(0,0,-3.6)
+
+func _inspect_structure(cursor: Vector2) -> void:
+    var origin: Vector3 = camera.project_ray_origin(cursor)
+    var direction: Vector3 = camera.project_ray_normal(cursor)
+    var candidates: Array[Dictionary] = [
+        {"kind":"cabin","title":"Rifugio","hp":base_hp,"max":CABIN_HP_MAX,
+         "center":Vector3(0,1.6,-3.6),"size":Vector3(4.6,3.2,5.6)}
+    ]
+    if stockade_built:
+        candidates.append({"kind":"gate","title":"Cancello","hp":gate_hp,"max":GATE_HP_MAX,
+            "center":Vector3(0,1.1,4),"size":Vector3(2.9,2.2,.6)})
+        candidates.append({"kind":"bench","title":"Banco","hp":bench_hp,"max":BENCH_HP_MAX,
+            "center":repair_bench.global_position+Vector3.UP*.7,"size":Vector3(1.8,1.4,.92)})
+        for i in range(wall_segments.size()):
+            var section: Dictionary = wall_segments[i]
+            var size: Vector3 = (section["collider"].shape as BoxShape3D).size
+            candidates.append({"kind":"wall:%d" % i,"title":str(section["name"]),
+                "hp":float(section["hp"]),"max":WALL_HP_MAX,
+                "center":section["position"]+Vector3.UP*size.y*.5,"size":size})
+    var kind: String = ""
+    var title: String = ""
+    var health: float = 0.0
+    var maximum: float = 0.0
+    var nearest: float = INF
+    for candidate in candidates:
+        var size: Vector3 = candidate["size"]
+        var bounds := AABB(candidate["center"]-size*.5,size)
+        var hit = bounds.intersects_ray(origin,direction)
+        if hit == null:
+            continue
+        var distance: float = origin.distance_squared_to(hit)
+        if distance < nearest:
+            nearest = distance
+            kind = candidate["kind"]
+            title = candidate["title"]
+            health = candidate["hp"]
+            maximum = candidate["max"]
+    if kind == "":
+        return
+    manual_target = kind
+    hero.clear_mouse_destination()
+    last_mouse_button = false
+    var body: VBoxContainer = repair_popup.get_node("Menu")
+    for child in body.get_children():
+        body.remove_child(child)
+        child.queue_free()
+    var label := Label.new()
+    label.text = "%s | %d / %d HP" % [title,ceili(health),int(maximum)]
+    body.add_child(label)
+    var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
+    var near: bool = hero.global_position.distance_to(_manual_position(kind)) <= 4.4
+    var button := Button.new()
+    button.text = "Ripara | %d legno" % cost if near else "Avvicinati per riparare"
+    button.disabled = not near or wood < cost or health >= maximum
+    button.pressed.connect(func(): _repair_selected(kind))
+    body.add_child(button)
+    var close := Button.new()
+    close.text = "Chiudi"
+    close.pressed.connect(func(): repair_popup.hide())
+    body.add_child(close)
+    repair_popup.popup_centered()
