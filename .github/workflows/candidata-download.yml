@@ -61,6 +61,7 @@ jobs:
             echo 'La prerelease esiste gia: non viene sovrascritta.'
             exit 0
           fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
           Pacchetto separato per il collaudo di movimento, inquadratura e visibilita delle costruzioni.
 
@@ -77,6 +78,6 @@ jobs:
           Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
           NOTES
           gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-base-visuale-ee5c659.zip \
-            --repo "$GITHUB_REPOSITORY" --target "$CANDIDATE_SHA" \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
             --prerelease --latest=false --title 'Candidata base e visuale ee5c659 — solo collaudo' \
             --notes-file note-candidata.txt
