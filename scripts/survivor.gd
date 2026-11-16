@@ -203,8 +203,10 @@ func receive_damage(amount: float) -> void:
     hp = maxf(0.0, hp - amount * DAMAGE_MULTIPLIER)
     _update_health_bar()
     if hp <= 0.0:
+        game.salvage.drop_carried()
         hp = 100.0
         _update_health_bar()
         global_position = Vector3(0, 0.16, 6.7)
         game.coins = maxi(0, int(game.coins * 0.8))
         game.show_message("Sei tornato al rifugio. Hai perso il 20% delle monete.", 3.0)
+        game._save_progress()

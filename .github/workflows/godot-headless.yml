@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Recupera il repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Installa dipendenze Linux
         run: sudo apt-get update && sudo apt-get install -y unzip libfontconfig1 libx11-6 libxcursor1 libxinerama1 libxi6 libxrandr2 libxrender1 libgl1
       - name: Installa Godot 4.7.2 (stessa versione del builder Windows)
@@ -34,3 +36,48 @@ jobs:
       - name: Importa e avvia il gioco senza grafica
         shell: bash
         run: bash tools/VERIFICA_LINUX.sh
+      - name: Esporta candidata Windows x86_64
+        shell: bash
+        run: bash tools/ESPORTA_CANDIDATA_LINUX.sh
+      - name: Conserva candidata Windows per il collaudo
+        uses: actions/upload-artifact@v4
+        with:
+          name: UltimoRifugio-candidata-Windows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/candidata-windows/
+          retention-days: 30
+          if-no-files-found: error
+
+  windows-smoke:
+    needs: godot-smoke
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Scarica la candidata appena esportata
+        uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-candidata-Windows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: candidata
+      - name: Avvio, salvataggio e riapertura Windows headless
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $folder = (Resolve-Path candidata).Path
+          $env:APPDATA = Join-Path $env:RUNNER_TEMP 'ur-appdata'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'ur-localappdata'
+          New-Item -ItemType Directory -Force $env:APPDATA, $env:LOCALAPPDATA | Out-Null
+          Push-Location $folder
+          try {
+            foreach ($stage in @('avvio','riapertura')) {
+              $out = Join-Path $env:RUNNER_TEMP "$stage-out.log"
+              $err = Join-Path $env:RUNNER_TEMP "$stage-err.log"
+              $process = Start-Process -FilePath (Join-Path $folder 'UltimoRifugio.exe') -ArgumentList '--headless --audio-driver Dummy --quit-after 15' -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+              Get-Content $out, $err
+              if ($process.ExitCode -ne 0) { throw "Avvio Windows fallito: $($process.ExitCode)" }
+              if (Select-String -Path $out,$err -Pattern 'ERROR:|Parse Error:|FATAL:') { throw 'Errori Godot Windows' }
+              $save = Join-Path $folder 'salvataggi/partita.json'
+              if (-not (Test-Path $save)) { throw 'Salvataggio portatile Windows mancante' }
+              $data = Get-Content $save -Raw | ConvertFrom-Json
+              if ($data.version -ne 8 -or $null -eq $data.salvage -or $null -eq $data.wall_hp) { throw 'Salvataggio Windows incompleto' }
+            }
+          } finally { Pop-Location }
+          Write-Host 'OK: candidata Windows avviata e riaperta con salvataggio v8. Rendering interattivo da collaudare.'

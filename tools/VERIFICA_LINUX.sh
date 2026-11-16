@@ -71,3 +71,12 @@ cat "$work/maintenance.log"
 if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/maintenance.log"; then
   exit 1
 fi
+
+echo "== Godot: regressioni esplorazione e deterioramento =="
+if ! "$GODOT" --headless --path . --script tests/exploration_and_damage.gd >"$work/exploration.log" 2>&1; then
+  cat "$work/exploration.log"; exit 1
+fi
+cat "$work/exploration.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/exploration.log"; then
+  exit 1
+fi

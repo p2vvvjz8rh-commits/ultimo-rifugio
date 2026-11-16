@@ -39,12 +39,43 @@ COLLAUDO NECESSARIO PRIMA DEL MERGE
   dopo salvataggio, chiusura e riavvio. Non usare l'unica copia della partita.
 La candidata non e' ancora una nuova versione giocabile distribuita.
 
-PROSSIMO TRAGUARDO
-Revisione estetica del deterioramento e miglioramento di ambiente/esplorazione.
-Non inclusi qui; difese avanzate e percorsi obbligati restano rinviati.
+TRAGUARDO SUCCESSIVO
+Il ciclo di ambiente/esplorazione descritto sotto e' ora incluso.
+Difese avanzate e percorsi obbligati restano rinviati.
 
 RIPRISTINO
 main e la cronologia di Alfa 13 restano intatti.
 Base tecnica prima di questo ciclo: 5a1710b0c5cef9f43f007fb7a075463e11a489cb.
 Per annullare il ciclo usare un revert del relativo commit su sviluppo-agenti,
 non un reset forzato. Nessuna migrazione del formato v8.
+
+CICLO SUCCESSIVO - AMBIENTE, DETERIORAMENTO, RECUPERO
+=====================================================
+La candidata incorpora ora il traguardo estetico e di esplorazione.
+- Tre stati di integrita': integro, danneggiato, grave; a zero restano detriti.
+  Le tavole si deformano leggermente senza sparire a intervalli regolari,
+  il tetto resta presente fino al crollo, le schegge sono a terra.
+  La riparazione recupera le trasformazioni originali, senza deriva per frame.
+- Lettiera, felci, bordi del sentiero, attrezzi e legname nella base;
+  luce meno intensa, guida piu' leggibile, pannello F3 contenuto nella finestra.
+- Recupero facoltativo a OVEST: F presso le casse, restare fermi 4 secondi.
+  Movimento o danno interrompono la ricerca. Carico massimo tre recuperi;
+  ricompensa solo entrando nel cortile, a sud del portico. Ogni carico vale
+  12 legno e 8 monete; tre carichi insieme danno altre 10 monete.
+  Proseguire attira piu' zombie esistenti. Sconfitta: perdita del carico.
+  Ogni punto torna disponibile dopo 240 secondi di tempo di gioco.
+- Carico, consegne e cooldown sono campi opzionali nel JSON v8.
+  Una ricerca incompleta riparte da zero; il carico completato resta salvato.
+- tests/exploration_and_damage.gd verifica stati, ripristino e stabilita'
+  geometrica, distanza, interruzioni, pausa, carico/cooldown, consegna unica,
+  ricompense, sconfitta e compatibilita' dei nuovi campi opzionali.
+
+PACCHETTO DI COLLAUDO WINDOWS
+La CI esporta con Godot 4.7.2 dopo i test e conserva un artifact per 30 giorni,
+identificato dal commit della candidata. Contiene EXE, PCK, avvio con doppio clic,
+istruzioni, identificativo del commit e checksum SHA256. Non include updater.
+Estrarre in una nuova cartella: i salvataggi della candidata rimangono li'.
+Non sostituire Alfa 13 e non spostare l'unica copia della partita originale.
+Esportazione Linux verso Windows e controllo intestazione PE x86_64 non
+certificano l'avvio nativo Windows: e' richiesto il collaudo del tester.
+La candidata precedente 8fbeb89 rimane nella cronologia per ripristino.

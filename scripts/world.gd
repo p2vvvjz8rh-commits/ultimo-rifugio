@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 13 - paesaggio rifinito e missione radio opzionale.
+## Candidata di sviluppo: manutenzione, paesaggio e recupero materiali.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
@@ -88,6 +88,7 @@ var test_panel: PanelContainer
 var test_panel_visible: bool = false
 var test_stats: Label
 var radio_station
+var salvage
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -96,8 +97,12 @@ func _ready() -> void:
     _create_cabin()
     _create_forest()
     _decorate_world()
+    _dress_landscape()
     _create_hero()
     _create_radio_station()
+    salvage = preload("res://scripts/salvage_activity.gd").new()
+    add_child(salvage)
+    salvage.configure(self)
     _create_camera()
     _create_hud()
     _load_progress()
@@ -106,7 +111,7 @@ func _ready() -> void:
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("ALFA 13: esplora a EST, trova la radio e premi R per una missione!", 6.0)
+    show_message("CANDIDATA: clic destro per ispezionare; F per recuperare materiali a OVEST. ", 6.0)
 
 func _process(delta: float) -> void:
     if paused:
@@ -158,6 +163,8 @@ func _input(event: InputEvent) -> void:
                 if not paused: _test_start_raid()
             KEY_F3:
                 _toggle_test_panel()
+            KEY_F:
+                if not paused: salvage.interact()
             KEY_R:
                 if not paused and is_instance_valid(radio_station):
                     radio_station.activate()
@@ -256,14 +263,14 @@ func _create_environment() -> void:
     sky.sky_material = sky_material
     environment.sky = sky
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-    environment.ambient_light_energy = 0.65
+    environment.ambient_light_energy = 0.50
     world_environment.environment = environment
     add_child(world_environment)
     var sun := DirectionalLight3D.new()
     sun.name = "Sole_del_pomeriggio"
     sun.rotation_degrees = Vector3(-58.0, -32.0, 0.0)
     sun.light_color = Color("#ffe3ad")
-    sun.light_energy = 1.35
+    sun.light_energy = 1.0
     sun.shadow_enabled = true
     add_child(sun)
 
@@ -362,6 +369,7 @@ func _create_cabin() -> void:
         if item is MeshInstance3D and String(item.name) != "Fondamenta":
             cabin_meshes.append(item as MeshInstance3D)
     cabin_visual = _make_structure_visual(base,"cabin",CABIN_HP_MAX,Vector3(0.0,4.05,0.0))
+    cabin_visual.bind_meshes(cabin_meshes)
 
 func _decorate_world() -> void:
     # Rocce, ciuffi, terra smossa e tronchi statici: nessuna nuova meccanica.
@@ -407,7 +415,7 @@ func _create_forest() -> void:
         var pos := Vector2(rng.randf_range(-20.0, 20.0), rng.randf_range(-20.0, 20.0))
         if absf(pos.x) < 6.6 and pos.y > -9.0 and pos.y < 7.8:
             continue
-        if pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
+        if _near_salvage_site(pos) or pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
             continue
         if pos.length() < 10.5 and rng.randf() < .75:
             continue
@@ -672,26 +680,13 @@ func _make_structure_visual(parent: Node3D, kind: String, maximum: float, local_
 func _sync_structure_visuals() -> void:
     if is_instance_valid(cabin_visual):
         cabin_visual.set_health(base_hp)
-        for item in cabin_meshes:
-            if is_instance_valid(item):
-                var title: String = String(item.name)
-                var missing_roof: bool = base_hp > 0.0 and base_hp < CABIN_HP_MAX*.5 and title == "Tetto_sinistro"
-                item.visible = title == "Fondamenta" or (base_hp > 0.0 and not missing_roof)
     if is_instance_valid(gate_visual):
         gate_visual.set_health(gate_hp)
         if is_instance_valid(gate_left) and is_instance_valid(gate_right):
             gate_left.visible = gate_hp > 0.0
             gate_right.visible = gate_hp > 0.0
-            gate_left.rotation.z = .18 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
-            gate_right.rotation.z = -.12 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
     if is_instance_valid(bench_visual):
         bench_visual.set_health(bench_hp)
-    if is_instance_valid(repair_bench):
-        var idx: int = 0
-        for child in repair_bench.get_children():
-            if child is MeshInstance3D:
-                child.visible = bench_hp > 0.0 and not (bench_hp < BENCH_HP_MAX*.5 and idx == 2)
-                idx += 1
     for wall in wall_segments:
         var hp_now: float = float(wall["hp"])
         var component = wall["durability"]
@@ -701,11 +696,6 @@ func _sync_structure_visuals() -> void:
         old.visible = false
         var crack: MeshInstance3D = wall["crack"]
         crack.visible = false
-        var meshes: Array = wall["visuals"]
-        for i in range(meshes.size()):
-            var mesh: MeshInstance3D = meshes[i]
-            if is_instance_valid(mesh):
-                mesh.visible = hp_now > 0.0 and not (hp_now < WALL_HP_MAX*.5 and i % 5 == 0)
         var collision: CollisionShape3D = wall["collider"]
         if hp_now <= 0.0 and not collision.disabled:
             collision.set_deferred("disabled",true)
@@ -719,7 +709,7 @@ func _create_test_panel(root: Control) -> void:
     test_panel.name = "Controlli_test"
     test_panel.anchor_left = 1.0
     test_panel.anchor_right = 1.0
-    test_panel.offset_left = -250
+    test_panel.offset_left = -320
     test_panel.offset_right = -16
     test_panel.offset_top = 132
     test_panel.offset_bottom = 610
@@ -742,6 +732,8 @@ func _create_test_panel(root: Control) -> void:
     var restore := _button(column,"RIPARA TUTTO (TEST)")
     restore.pressed.connect(_test_repair_all)
     test_stats = _label(column,"",12,Color("#e1e0bf"))
+    test_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    test_stats.custom_minimum_size.x = 280
 
 func _test_heal_hero() -> void:
     hero.hp = 100.0
@@ -823,6 +815,7 @@ func _create_repair_bench() -> void:
     repair_bench.add_child(repair_bench_label)
     _register_occluders(repair_bench)
     bench_visual = _make_structure_visual(repair_bench,"bench",BENCH_HP_MAX,Vector3(0.0,2.18,0.0))
+    bench_visual.bind_meshes(repair_bench.get_children().filter(func(item): return item is MeshInstance3D))
 
 func _use_repair_bench() -> void:
     if not stockade_built or repair_bench == null or not is_instance_valid(repair_bench):
@@ -1017,6 +1010,7 @@ func _build_stockade() -> void:
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
     gate_visual = _make_structure_visual(fence_root,"gate",GATE_HP_MAX,Vector3(0.0,3.0,4.0))
+    gate_visual.bind_meshes(gate_left.get_children() + gate_right.get_children())
     _create_repair_bench()
     _register_occluders(fence_root)
 
@@ -1042,6 +1036,9 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
             if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
                 visuals.append(obj)
     visuals.append(rail)
+    durability.bind_meshes(visuals)
+    if size.z > size.x:
+        durability.rotation.y = PI*.5
     # Segno di danno visivo localizzato: compare quando la sezione perde meta salute.
     var crack := _box(fence_root,"Asse_scheggiata_" + title,Vector3(center.x,1.35,center.z + size.z*.5 + .035),Vector3(minf(size.x*.65,1.15),.11,.09),"#4a3123",-.34)
     if size.x < size.z:
@@ -1302,7 +1299,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 13",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · CANDIDATA",13,Color("#e6bb77"))
     var start_over := Button.new()
     start_over.text = "NUOVA PARTITA"
     start_over.custom_minimum_size = Vector2(150,28)
@@ -1358,7 +1355,9 @@ func _create_hud() -> void:
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
     _create_test_panel(root)
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: banco   •   Clic destro: ispeziona/ripara   •   R: radio   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD: muovi  •  E: banco  •  B: costruisci/ripara  •  Clic destro: ispeziona  •  F: recupera  •  R: radio  •  ESC: pausa",13,Color("#fff0ce"))
+    guide.add_theme_color_override("font_outline_color",Color("#17251c"))
+    guide.add_theme_constant_override("outline_size",5)
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
@@ -1378,6 +1377,8 @@ func _update_hud() -> void:
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
     objective_hud.text = "SCORTE %d/%d  |  ORDA %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
+    if salvage.carried > 0:
+        objective_hud.text += " | CARICO %d/3 - TORNA ALLA BASE" % salvage.carried
     if is_instance_valid(radio_station) and radio_station.active:
         objective_hud.text = "DIFENDI LA RADIO: %ds  |  ORDA %d:%02d" % [ceili(radio_station.remaining),int(remain / 60),remain % 60]
     if not stockade_built:
@@ -1568,7 +1569,7 @@ func _save_progress() -> void:
         return
     var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
     var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
-    var data := {"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
+    var data := {"salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1583,6 +1584,7 @@ func _load_progress() -> void:
     file.close()
     if typeof(parsed) != TYPE_DICTIONARY or int(parsed.get("version",0)) != 8:
         return
+    salvage.load_data(parsed.get("salvage",{}))
     collected_supplies = int(parsed.get("collected_supplies",0))
     supply_goal = int(parsed.get("supply_goal",4))
     wood = int(parsed.get("wood",0))
@@ -1708,3 +1710,37 @@ func _inspect_structure(cursor: Vector2) -> void:
     close.pressed.connect(func(): repair_popup.hide())
     body.add_child(close)
     repair_popup.popup_centered()
+
+func _near_salvage_site(point: Vector2) -> bool:
+    for place in [Vector2(-13,10),Vector2(-17,0),Vector2(-13,-13)]:
+        if point.distance_to(place) < 3.4:
+            return true
+    return false
+
+func _dress_landscape() -> void:
+    var detail_rng := RandomNumberGenerator.new()
+    detail_rng.seed = 98143
+    var dressing := Node3D.new()
+    dressing.name = "Dettagli_del_bosco"
+    add_child(dressing)
+    for index in range(65):
+        var at := Vector3(detail_rng.randf_range(-22,22),.015,detail_rng.randf_range(-22,22))
+        if (absf(at.x) < 6 and at.z > -9 and at.z < 6) or _near_salvage_site(Vector2(at.x,at.z)):
+            continue
+        var patch := _cone(dressing,"Lettiera",at,.5+detail_rng.randf()*.8,.018,"#69744c",.55)
+        patch.rotation.y = detail_rng.randf_range(0,TAU)
+        for leaf in range(3):
+            var fern := _box(dressing,"Felce",at+Vector3(float(leaf-1)*.13,.13,0),Vector3(.08,.025,.55),"#47774b")
+            fern.rotation = Vector3(-.25,float(leaf)*1.2,.3)
+    for side in [-1,1]:
+        for index in range(6):
+            _rock(dressing,"Bordo_sentiero",Vector3(float(side)*(1.0+float(index)*.07),.04,4.8+float(index)*.85),Vector3(.18,.10,.24),"#9a9881")
+    var base_details := Node3D.new()
+    base_details.name = "Attrezzi_e_scorte"
+    add_child(base_details)
+    for index in range(4):
+        _box(base_details,"Tavole_di_scorta",Vector3(3.8,.12+float(index)*.12,-5.4),Vector3(.65,.10,1.7),"#9d7952")
+    _box(base_details,"Supporto_attrezzi",Vector3(-3.8,.6,-5.5),Vector3(.13,1.2,.13),"#72543a")
+    _box(base_details,"Manico_vanga",Vector3(-3.8,.8,-5.5),Vector3(.065,1.2,.065),"#bf9a67",.18)
+    _box(base_details,"Ferro_vanga",Vector3(-3.67,.23,-5.5),Vector3(.27,.34,.08),"#747e7b",.18)
+    _register_occluders(base_details)

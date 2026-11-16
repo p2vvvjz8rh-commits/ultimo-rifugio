@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 12 - componente riutilizzabile per TUTTE le costruzioni.
+## Deterioramento reversibile per ogni costruzione.
 ## Mostra una barra di vita solo sotto il 100% e due livelli di danno fisico.
 ## I proprietari controllano collisioni, crollo ed eventuale riparazione.
 
@@ -51,47 +51,58 @@ func _piece(parent: Node3D, at: Vector3, dimensions: Vector3, tone: Color, tilt:
     parent.add_child(model)
     return model
 
+# Ogni mesh conserva la trasformazione originale: nessun accumulo di deformazioni.
+var bound_meshes: Array[Dictionary] = []
+var damage_stage: int = -1
+
+func bind_meshes(meshes: Array) -> void:
+    bound_meshes.clear()
+    for item in meshes:
+        if is_instance_valid(item) and item is MeshInstance3D:
+            bound_meshes.append({"mesh":item,"transform":item.transform})
+    damage_stage = -1
+    set_health(hp)
+
 func _create_marks() -> void:
-    # Danni di forma e posizione diverse per ogni categoria, senza sola variazione cromatica.
-    match structure_kind:
-        "wall":
-            _piece(light_damage,Vector3(-.45,-.32,.27),Vector3(.16,.72,.12),Color("#493021"),.46)
-            _piece(light_damage,Vector3(.20,-.7,.28),Vector3(.11,.45,.12),Color("#c99b67"),-.42)
-            _piece(heavy_damage,Vector3(.38,-.38,.31),Vector3(.21,1.22,.14),Color("#473025"),.54)
-            _piece(heavy_damage,Vector3(-.32,-.9,.28),Vector3(.65,.15,.17),Color("#533a28"),-.22)
-        "gate":
-            _piece(light_damage,Vector3(-.55,-.45,.27),Vector3(.11,.95,.13),Color("#4c3427"),.26)
-            _piece(heavy_damage,Vector3(.48,-.5,.3),Vector3(.17,1.42,.17),Color("#442d25"),-.48)
-            _piece(heavy_damage,Vector3(0,-1.2,.3),Vector3(.92,.13,.2),Color("#63442e"),.34)
-        "cabin":
-            _piece(light_damage,Vector3(-.85,-1.5,2.04),Vector3(.13,.95,.11),Color("#503623"),.40)
-            _piece(light_damage,Vector3(.67,-1.0,2.07),Vector3(.12,.65,.12),Color("#493426"),-.35)
-            _piece(heavy_damage,Vector3(-1.02,-.65,1.65),Vector3(.62,.16,.17),Color("#59402d"),-.38)
-            _piece(heavy_damage,Vector3(.9,-1.9,2.02),Vector3(.19,1.27,.18),Color("#493126"),.33)
-            _piece(heavy_damage,Vector3(.15,-.45,1.9),Vector3(.7,.14,.13),Color("#402f27"),.28)
-        "bench":
-            _piece(light_damage,Vector3(-.27,-.46,.52),Vector3(.16,.52,.13),Color("#513624"),.38)
-            _piece(heavy_damage,Vector3(.32,-.6,.53),Vector3(.18,.78,.13),Color("#462f24"),-.45)
-            _piece(heavy_damage,Vector3(0,-.96,.5),Vector3(.8,.14,.15),Color("#755039"),.32)
-        _:
-            _piece(light_damage,Vector3(0,-.4,.25),Vector3(.1,.65,.1),Color("#513c2d"),.35)
-            _piece(heavy_damage,Vector3(.2,-.5,.25),Vector3(.23,.86,.13),Color("#4c2b26"),-.42)
-    var fallen_y: float = -2.63
-    match structure_kind:
-        "cabin":
-            fallen_y = -3.90
-        "gate":
-            fallen_y = -2.87
-        "bench":
-            fallen_y = -2.05
-    for index in range(5):
-        var x: float = (float(index)-2.0) * .29
-        _piece(rubble,Vector3(x,fallen_y + float(index%2)*.055,.10),Vector3(.42,.13,.31),Color("#866346"),float(index%3)*.23)
+    # Schegge poggiate al suolo; niente assi sospese davanti alla struttura.
+    for index in range(7):
+        var x: float = (float(index)-3.0)*.23
+        var piece := _piece(rubble,Vector3(x,-position.y+.10,float(index%3)*.19-.2),
+            Vector3(.12,.09,.65+float(index%2)*.3),Color("#98704b"),.08)
+        piece.rotation.y = float(index)*1.73
+    for index in range(3):
+        var chip := _piece(heavy_damage,Vector3(float(index-1)*.3,-position.y+.07,.35),
+            Vector3(.07,.06,.35),Color("#ba9566"))
+        chip.rotation.y = float(index)*2.1
+
+func _apply_damage(stage: int) -> void:
+    if stage == damage_stage:
+        return
+    damage_stage = stage
+    for index in range(bound_meshes.size()):
+        var entry: Dictionary = bound_meshes[index]
+        var item: MeshInstance3D = entry["mesh"]
+        if not is_instance_valid(item):
+            continue
+        item.transform = entry["transform"]
+        item.visible = stage < 3
+        if stage == 0 or stage == 3:
+            continue
+        # Les pieces porteuses restent en place; les planches se voilent localement.
+        var title: String = String(item.name)
+        var plank: bool = title.begins_with("Asse") or title.begins_with("Legno_anta") or title.begins_with("Banco_piano") or title.begins_with("Listello") or title.begins_with("Tetto")
+        if plank:
+            var sign_value: float = -1.0 if index%2 == 0 else 1.0
+            item.rotation.z += sign_value * (.018 if stage == 1 else .065)
+            item.position.y -= .015 if stage == 1 else .065
+            if stage == 2:
+                item.scale.y *= .88
 
 func set_health(value: float) -> void:
     hp = clampf(value,0.0,max_hp)
     var percent: float = hp / maxf(max_hp,1.0)
-    light_damage.visible = percent < .999 and percent > 0.0
+    _apply_damage(3 if hp <= 0 else (0 if percent >= .999 else (1 if percent >= .5 else 2)))
+    light_damage.visible = false
     heavy_damage.visible = percent < .50 and percent > 0.0
     rubble.visible = hp <= 0.0
     bar.visible = percent < .999
