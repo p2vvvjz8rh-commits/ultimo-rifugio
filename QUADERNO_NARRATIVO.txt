@@ -45,3 +45,37 @@ PROPOSTE DA VALUTARE PIU' AVANTI
 STATUS
 Questi sono APPUNTI, non requisiti da implementare ora.
 Le idee attribuite all'utente non vanno confuse con i suggerimenti dell'assistente.
+
+APPUNTO NARRATIVO 02 - SCOPERTA A SORPRESA E PERSONAGGI
+========================================================
+NUOVA PREFERENZA DELL'UTENTE
+- La scoperta della regia dietro l'invasione deve essere graduale.
+- All'inizio il giocatore NON deve aspettarsi questa rivelazione: deve essere
+  una sorpresa narrativa. Non anticipare apertamente il mistero nei primi obiettivi.
+- Introdurre nel tempo qualche personaggio che faccia avanzare la trama e/o
+  entri nella squadra. Riferimento emotivo/narrativo: Ellie di The Last of Us;
+  non si intende copiare il personaggio o la storia.
+- Evitare un sistema di compagni troppo complesso. Per iniziare potrebbero
+  bastare DUE AIUTANTI:
+  1) Un alleato di combattimento, che accompagna il protagonista.
+  2) Un alleato addetto alla gestione/tenuta della base mentre il protagonista
+     e' lontano.
+- I personaggi possono essere introdotti tramite eventi o missioni della trama.
+- Nomi, personalita', backstory, incontro, disponibilita', eventuali dialoghi,
+  meccaniche specifiche e quando entraranno in squadra NON sono ancora decisi.
+
+SUGGERIMENTI DELL'ASSISTENTE - NON ANCORA APPROVATI
+- Compagno di combattimento semplice: segue il protagonista, combatte con
+  attacchi automatici e non richiede menu tattici o inventari separati.
+- Responsabile della base: quando il protagonista esplora, svolge uno o due
+  compiti chiari e limitati (per esempio piccoli lavori di manutenzione o
+  raccolta lenta), senza simulazione economica complessa.
+- I personaggi dovrebbero avere peso narrativo e non essere solo bonus:
+  dialoghi brevi, eventi personali e indizi potrebbero farli evolvere.
+- Gli incontri possono preparare la scoperta graduale senza svelarla subito;
+  l'utente deve poter scoprire piu' avanti che alcuni dettagli erano indizi.
+- Per contenere la complessita', non aggiungere subito reclutamento
+  illimitato, equipaggiamenti individuali, gestione fame, morale o relazioni.
+
+STATO
+Solo appunti. Nessuna implementazione autorizzata al momento.
