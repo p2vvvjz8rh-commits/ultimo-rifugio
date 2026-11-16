@@ -1519,6 +1519,10 @@ func _wall_hp_for_save() -> Array:
     return saved
 
 func _save_progress() -> void:
+    # Durante la chiusura della scena il protagonista puo' essere gia' stato liberato.
+    # Mai creare/troncare partita.json prima di sapere che i dati sono leggibili.
+    if not is_instance_valid(hero):
+        return
     var directory := _save_directory()
     var result := DirAccess.make_dir_recursive_absolute(directory)
     if result != OK:
@@ -1590,5 +1594,5 @@ func _load_progress() -> void:
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
 func _exit_tree() -> void:
-    if hero != null and not skip_save_on_exit:
+    if not skip_save_on_exit and is_instance_valid(hero):
         _save_progress()
