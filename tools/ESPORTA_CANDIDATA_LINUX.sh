@@ -39,6 +39,7 @@ assert exe[:2] == b'MZ', 'Eseguibile Windows assente'
 pe = struct.unpack_from('<I', exe, 0x3c)[0]
 assert exe[pe:pe+4] == b'PE\0\0' and struct.unpack_from('<H', exe, pe+4)[0] == 0x8664
 assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
+(folder/'CANDIDATA_PORTATILE.txt').write_text('Dati di collaudo separati da Alfa 13. Conservare questo file accanto al gioco.\n',encoding='utf-8')
 (folder/'AVVIA_CANDIDATA.bat').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\nstart "" "UltimoRifugio.exe"\r\n')
 (folder/'LEGGIMI.txt').write_text(
     'ULTIMO RIFUGIO - CANDIDATA DI COLLAUDO\n'
@@ -52,6 +53,26 @@ assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
     'chiusura e ripresa della partita anche con carico non ancora consegnato.\n'
     'Esportata con Godot 4.7.2 da Linux. Avvio Windows da collaudare.\n',encoding='utf-8')
 PY
+# Carica il PCK esportato con un template release Linux, senza editor.
+# Verifica anche che il marcatore separi davvero i dati del collaudo.
+unzip -jo "$template_archive" templates/linux_release.x86_64 -d "$work/packed"
+chmod +x "$work/packed/linux_release.x86_64"
+cp build/candidata-windows/UltimoRifugio.pck "$work/packed/linux_release.pck"
+cp build/candidata-windows/CANDIDATA_PORTATILE.txt "$work/packed/"
+for stage in packed-start packed-reload; do
+  if ! "$work/packed/linux_release.x86_64" --headless --quit-after 15 >"$work/$stage.log" 2>&1; then
+    cat "$work/$stage.log"; exit 1
+  fi
+  cat "$work/$stage.log"
+  if grep -Ei '(ERROR:|Parse Error:|FATAL:)' "$work/$stage.log"; then exit 1; fi
+  python3 - "$work/packed/salvataggi/partita.json" <<'PYTEST'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as stream:
+    data = json.load(stream)
+assert data['version'] == 8 and 'salvage' in data and 'wall_hp' in data
+print('OK: PCK release, dati portatili e salvataggio v8')
+PYTEST
+done
 git rev-parse HEAD > build/candidata-windows/COMMIT.txt
 (cd build/candidata-windows && sha256sum UltimoRifugio.exe UltimoRifugio.pck > SHA256SUMS.txt)
 echo 'OK: esportazione Windows x86_64 e pacchetto di collaudo pronti.'

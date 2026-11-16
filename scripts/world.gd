@@ -1544,8 +1544,12 @@ func _update_supply_caches(delta: float) -> void:
         next_cache_spawn = elapsed + 26.0
 
 func _save_directory() -> String:
-    if OS.has_feature("standalone"):
-        return OS.get_executable_path().get_base_dir().path_join("salvataggi")
+    var executable_directory: String = OS.get_executable_path().get_base_dir()
+    # Il pacchetto di collaudo resta separato dai dati di Alfa 13 anche avviando
+    # direttamente l'EXE. Fuori dalla candidata si conserva il percorso storico.
+    var portable_candidate: bool = not OS.has_feature("editor") and FileAccess.file_exists(executable_directory.path_join("CANDIDATA_PORTATILE.txt"))
+    if OS.has_feature("standalone") or portable_candidate:
+        return executable_directory.path_join("salvataggi")
     return ProjectSettings.globalize_path("user://salvataggi")
 
 func _wall_hp_for_save() -> Array:

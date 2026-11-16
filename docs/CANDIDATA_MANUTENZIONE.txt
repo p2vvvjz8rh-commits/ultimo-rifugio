@@ -76,6 +76,13 @@ identificato dal commit della candidata. Contiene EXE, PCK, avvio con doppio cli
 istruzioni, identificativo del commit e checksum SHA256. Non include updater.
 Estrarre in una nuova cartella: i salvataggi della candidata rimangono li'.
 Non sostituire Alfa 13 e non spostare l'unica copia della partita originale.
+Il marcatore CANDIDATA_PORTATILE.txt forza i dati locali per questo pacchetto,
+anche avviando direttamente l'EXE. Fuori dal pacchetto resta il percorso
+storico: nessuna migrazione implicita dei salvataggi di Alfa 13.
 Esportazione Linux verso Windows e controllo intestazione PE x86_64 non
 certificano l'avvio nativo Windows: e' richiesto il collaudo del tester.
 La candidata precedente 8fbeb89 rimane nella cronologia per ripristino.
+
+Verifica aggiuntiva: il PCK esportato viene avviato e riaperto con un template
+release Linux; viene controllato il percorso portatile e il JSON v8. La CI
+esegue anche EXE Windows headless, con avvio e riapertura e stessi controlli.
