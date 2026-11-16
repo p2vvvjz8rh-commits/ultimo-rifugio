@@ -31,7 +31,7 @@ if ! "$GODOT" --headless --path . --quit-after 15 >"$work/scene.log" 2>&1; then
   cat "$work/scene.log"; exit 1
 fi
 cat "$work/scene.log"
-if grep -E -i '(SCRIPT ERROR:|Parse Error:|Invalid access to property|ERROR: Failed loading resource|ERROR: Failed to load script|ERROR: Cannot load)' "$work/import.log" "$work/scene.log"; then
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/import.log" "$work/scene.log"; then
   echo "Controllo fallito: errori di script o risorse rilevati." >&2
   exit 1
 fi
