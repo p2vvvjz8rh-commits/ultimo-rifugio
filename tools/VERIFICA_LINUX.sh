@@ -80,3 +80,12 @@ cat "$work/exploration.log"
 if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/exploration.log"; then
   exit 1
 fi
+
+echo "== Godot: geometria dei tre stati e crollo =="
+if ! "$GODOT" --headless --path . --script tests/structure_geometry.gd >"$work/geometry.log" 2>&1; then
+  cat "$work/geometry.log"; exit 1
+fi
+cat "$work/geometry.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/geometry.log"; then
+  exit 1
+fi

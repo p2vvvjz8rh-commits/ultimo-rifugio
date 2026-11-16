@@ -214,6 +214,7 @@ func _box(parent: Node3D, title: String, pos: Vector3, size: Vector3, color_hex:
     var shape := BoxMesh.new()
     shape.size = size
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -229,6 +230,7 @@ func _cone(parent: Node3D, title: String, pos: Vector3, radius: float, height: f
     shape.height = height
     shape.radial_segments = 7
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -243,6 +245,7 @@ func _rock(parent: Node3D, title: String, pos: Vector3, scale_3d: Vector3, color
     shape.radial_segments = 7
     shape.rings = 4
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -1032,13 +1035,17 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     var visuals: Array[MeshInstance3D] = []
     var rail := _box(fence_root,"Trave_della_sezione_" + title,Vector3(center.x,1.06,center.z),Vector3(size.x,.24,size.z),"#674a32")
     for obj in fence_root.get_children():
-        if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
-            if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
+        if not obj is MeshInstance3D or obj.get_meta("defense_bound",false):
+            continue
+        var role: String = str(obj.get_meta("visual_role",String(obj.name)))
+        if role == "Asse" or role == "Punta":
+            if absf(obj.position.x-center.x) <= size.x*.5+.01 and absf(obj.position.z-center.z) <= size.z*.5+.01:
                 visuals.append(obj)
+                obj.set_meta("defense_bound",true)
     visuals.append(rail)
-    durability.bind_meshes(visuals)
     if size.z > size.x:
         durability.rotation.y = PI*.5
+    durability.bind_meshes(visuals)
     # Segno di danno visivo localizzato: compare quando la sezione perde meta salute.
     var crack := _box(fence_root,"Asse_scheggiata_" + title,Vector3(center.x,1.35,center.z + size.z*.5 + .035),Vector3(minf(size.x*.65,1.15),.11,.09),"#4a3123",-.34)
     if size.x < size.z:

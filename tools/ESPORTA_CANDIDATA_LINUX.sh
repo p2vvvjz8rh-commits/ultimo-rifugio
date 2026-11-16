@@ -49,8 +49,11 @@ assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
     'Non sovrascrivere la tua unica copia di una partita.\n'
     'Controlli: WASD, E banco, B costruisci/ripara, clic destro ispeziona, F recupero.\n'
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
-    'Prova danni e riparazione, accesso al cancello con zombie, recupero e consegna,\n'
-    'chiusura e ripresa della partita anche con carico non ancora consegnato.\n'
+    'COLLAUDO RICHIESTO: soltanto estetico.\n'
+    'F3: Simula danni una volta (danneggiato), due volte (grave), tre (crollo).\n'
+    'Controlla mura, cancello, rifugio e banco; poi Ripara tutto (test).\n'
+    'Verifica che gli stadi si distinguano allo zoom abituale.\n'
+    'Le meccaniche gia collaudate restano invariate.\n'
     'Esportata con Godot 4.7.2 da Linux. Avvio Windows da collaudare.\n',encoding='utf-8')
 PY
 # Carica il PCK esportato con un template release Linux, senza editor.

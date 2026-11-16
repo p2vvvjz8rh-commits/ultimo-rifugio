@@ -31,7 +31,8 @@ Progetto Godot 4.x per Windows con aggiornamento automatico via GitHub. Lo svilu
 - Controlli: movimento WASD/mouse, E banco, B costruzione/riparazione, T avvio orda test, F3 pannello test, N nuova partita, R radio.
 - Non aggiungere adesso sistemi pesanti di fame/sete, gestione complessa della squadra o nuovi tipi di zombie senza motivazione e test.
 - Difese aggiuntive (trappole, percorsi, buche): **rinviate** finché la base non sarà sufficientemente ampia.
-- Tutte le costruzioni hanno salute autonoma, barre sotto il 100%, danni e collasso a zero. La grafica attuale dei danni va in futuro riprogettata.
+- Tutte le costruzioni hanno salute autonoma, barre sotto il 100%, tre condizioni geometriche (integro, danneggiato, grave) e crollo riconoscibile a zero.
+- Per ogni costruzione futura associare tutte le mesh al componente `structure_visual.gd`: spaccature e parti mancanti devono sostituire la geometria sana. Per modelli importati predisporre varianti appropriate; colore, decal o piccoli detriti aggiunti da soli non bastano. Verificare riparazione reversibile e collisioni invariate.
 - Richieste di gameplay in attesa: cancello attraversabile solo dal protagonista finché integro; ripara tutto al banco; selezione e riparazione diretta delle singole strutture; aspetto dei danni più convincente.
 - Conserva la possibilità di raggiungere e usare il banco, l'accesso alla base e il salvataggio durante aggiornamenti.
 - Nuove missioni e aree devono avere un obiettivo comprensibile ed evitare ripetizione eccessiva.

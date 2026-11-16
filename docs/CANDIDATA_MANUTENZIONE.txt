@@ -86,3 +86,38 @@ La candidata precedente 8fbeb89 rimane nella cronologia per ripristino.
 Verifica aggiuntiva: il PCK esportato viene avviato e riaperto con un template
 release Linux; viene controllato il percorso portatile e il JSON v8. La CI
 esegue anche EXE Windows headless, con avvio e riapertura e stessi controlli.
+
+REVISIONE GEOMETRICA DOPO IL COLLAUDO WINDOWS
+============================================
+Il tester ha confermato accesso, attacco zombie al cancello, riparazioni,
+selezione, recupero e persistenza del carico. Il solo difetto importante
+segnalato riguarda la scarsa visibilita' del deterioramento.
+
+Questa revisione modifica la rappresentazione delle costruzioni:
+- Le mesh sane sono sostituite da geometrie con tagli aperti e monconi
+  irregolari nello stadio danneggiato; gli elementi sono deformati realmente.
+- Sotto meta' salute mancano tavole e segmenti, rimangono monconi piu' bassi
+  e supporti parziali. A zero le varianti in piedi spariscono e restano
+  detriti ricavati dall'ingombro delle parti originali.
+- Stesso componente per muro, cancello, pareti/tetto del rifugio e banco.
+  Nessuna scatola integra dietro i vuoti del rifugio o del cancello.
+- Ogni asse/punta della palizzata e' associata una sola volta alla sezione
+  corretta. I ruoli grafici sono conservati come metadata per evitare che
+  i nomi automatici di Godot lascino assi integre fuori dal sistema.
+- Le barre della salute e il ripristino esatto delle mesh sane sono conservati.
+- HP, soglie, costi, collisioni, AI, attivita' e formato dei salvataggi invariati.
+
+Contratto per future costruzioni: associare con bind_meshes tutte le parti
+sane al componente della singola struttura; le primitive BoxMesh ricevono
+il fallback di taglio e rimozione. I modelli importati richiedono varianti
+geometriche appropriate, mai una sola variazione di colore.
+
+tests/structure_geometry.gd controlla tutte le categorie: sostituzione
+completa delle mesh sane, riduzione effettiva della geometria nello stadio
+grave, detriti a zero HP, assenza di sovrapposizioni, riparazione reversibile,
+copertura di tutte le assi/punte senza condivisioni e collisioni invariate.
+Restano attivi tutti i test delle meccaniche gia' approvate dal tester.
+
+COLLAUDO RICHIESTO: breve verifica esclusivamente estetica dei tre stati,
+del crollo e del ripristino, con F3 e lo zoom normalmente usato dal tester.
+La nuova candidata si estrae in una nuova cartella; nessun merge in main.
