@@ -79,3 +79,22 @@ SUGGERIMENTI DELL'ASSISTENTE - NON ANCORA APPROVATI
 
 STATO
 Solo appunti. Nessuna implementazione autorizzata al momento.
+
+ACCORDO DI RISERVATEZZA NARRATIVA CON IL GIOCATORE
+=================================================
+Decisione dell'utente: desidera vivere la storia come una sorpresa, senza
+conoscere in anticipo sviluppo, identita' dei personaggi, rivelazioni o finale.
+L'assistente puo' ideare e in futuro implementare la storia autonomamente
+rispettando i temi e i vincoli concordati.
+
+- Nei messaggi diretti all'utente non anticipare trama, dialoghi, tradimenti,
+  sorprese, identita' del responsabile o finale.
+- Chiedere opinioni su tono, gioco, difficolta' e stile, senza svelare misteri.
+- Le note tecniche degli aggiornamenti devono essere prive di spoiler.
+- Separare, quando sara' il momento, i file di sceneggiatura da quelli tecnici
+  e segnalare chiaramente la presenza di SPOILER nei file narrativi.
+- I file del repository rimangono leggibili da chi li apre: questa separazione
+  previene spoiler accidentali, non garantisce segretezza tecnica.
+- Non scrivere la trama completa nel presente quaderno leggibile dal giocatore.
+- Questa decisione non autorizza a implementare subito nuove missioni o
+  modifiche. Prima sviluppare le prossime fasi quando richiesto.
