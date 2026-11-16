@@ -42,6 +42,7 @@ var camera_pitch_current: float = CAMERA_DEFAULT_PITCH
 var camera_radius_current: float = CAMERA_ORBIT_RADIUS
 var camera_focus := Vector3.ZERO
 var camera_dragging: bool = false
+var camera_previous_mouse_mode := Input.MOUSE_MODE_VISIBLE
 var enemy_indicator_root: Control
 var enemy_indicators: Array[Label] = []
 var noise_spawn_cooldown: float = 0.0
@@ -128,7 +129,7 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
     if camera_dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
-        camera_dragging = false
+        _end_camera_drag()
     if paused:
         _update_camera(delta)
         return
@@ -159,10 +160,15 @@ func _process(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
     if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
-        camera_dragging = event.pressed and not repair_popup.visible and not new_game_dialog.visible
-        if camera_dragging:
+        if event.pressed and not repair_popup.visible and not new_game_dialog.visible:
+            camera_dragging = true
             last_mouse_button = false
             hero.clear_mouse_destination()
+            camera_previous_mouse_mode = Input.mouse_mode
+            if DisplayServer.get_name() != "headless":
+                Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+        else:
+            _end_camera_drag()
         get_viewport().set_input_as_handled()
         return
     if event is InputEventMouseMotion and camera_dragging:
@@ -175,6 +181,7 @@ func _input(event: InputEvent) -> void:
                 camera_yaw = 0.0
                 camera_pitch = CAMERA_DEFAULT_PITCH
             KEY_ESCAPE:
+                _end_camera_drag()
                 paused = not paused
                 show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
             KEY_Q:
@@ -1822,3 +1829,12 @@ func _candidate_identity() -> String:
         if revision.length() == 40 and revision.is_valid_hex_number():
             return "CANDIDATA " + revision.left(7)
     return "CANDIDATA"
+
+func _end_camera_drag() -> void:
+    camera_dragging = false
+    if DisplayServer.get_name() != "headless" and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+        Input.mouse_mode = camera_previous_mouse_mode
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+        _end_camera_drag()

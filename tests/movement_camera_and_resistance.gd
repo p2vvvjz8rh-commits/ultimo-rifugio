@@ -74,6 +74,10 @@ func run() -> void:
     middle.pressed = false
     game._input(middle)
     check(not game.camera_dragging,"Rilascio rotella termina il trascinamento")
+    middle.pressed = true
+    game._input(middle)
+    game._notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+    check(not game.camera_dragging,"La perdita del focus libera il trascinamento")
     var home := InputEventKey.new()
     home.keycode = KEY_HOME
     home.pressed = true

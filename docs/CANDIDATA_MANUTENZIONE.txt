@@ -158,3 +158,6 @@ La richiesta del tester e' una rotazione completa, non una traslazione.
 - Test aggiornati: quattro quadranti, centro proiettato, raggio costante,
   transizione di 180 gradi, attraversamento 360, inclinazione, Home, pausa,
   zoom e movimento W con camera ruotata di 90 gradi.
+
+Durante il trascinamento orbitale il mouse e' catturato: il bordo dello schermo
+non interrompe la rotazione. Rilascio, ESC o perdita del focus liberano il mouse.
