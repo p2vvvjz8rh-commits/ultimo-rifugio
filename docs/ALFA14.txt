@@ -1,0 +1,26 @@
+ULTIMO RIFUGIO - ALFA 14
+========================
+
+- Il cancello lascia passare il protagonista e blocca gli zombie finche' integro.
+- Ripara tutto al banco; clic destro per ispezionare e riparare singole strutture.
+- Assi deformate, fratture, elementi mancanti e crollo visibile delle costruzioni.
+- Base e ambiente arricchiti; recupero materiali nel bosco e consegna alla base.
+- Animazione ferma contro gli ostacoli e maggiore resistenza della capanna.
+- Camera orbitale a 360 gradi con rotella premuta, inclinazione e Home.
+- WASD segue la camera; zoom e orbita funzionano anche in pausa.
+
+SALVATAGGI
+Il formato JSON v8 resta compatibile. Il percorso storico di Alfa 13 e'
+conservato per chi aggiorna dal launcher. Prima di aggiornare una partita
+precedente viene creata una copia partita_pre_alfa14.json; se il backup
+fallisce, il gioco non sovrascrive la partita originale.
+
+PACCHETTO PORTATILE
+Scarica Ultimo_Rifugio_Alfa14_Windows_Portatile.zip, estrai tutti i file e apri
+AVVIA_ALFA14.bat. Conserva PORTATILE.txt: i dati portatili rimangono nella
+cartella salvataggi/ accanto all'eseguibile, separati dall'installazione normale.
+
+RIPRISTINO
+Alfa 13 resta conservata nel tag alfa-13. Il launcher conserva anche il backup
+di sorgenti e binari precedenti e ripristina la vecchia versione se la nuova
+compilazione fallisce. Conservare sempre una copia delle partite originali.

@@ -116,6 +116,9 @@ func _physics_process(delta: float) -> void:
         direction.x -= 1.0
     if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
         direction.x += 1.0
+    # WASD segue l'orientamento effettivo della camera; le destinazioni mouse restano nel mondo.
+    if direction.length_squared() > .1:
+        direction = direction.rotated(Vector3.UP,game.camera_yaw_current)
     if direction.length_squared() < 0.1 and mouse_has_destination:
         var delta_goal := mouse_destination - global_position
         delta_goal.y = 0.0
@@ -139,7 +142,7 @@ func _physics_process(delta: float) -> void:
             direction = direction.normalized()
             last_direction = direction
             visual.look_toward(direction,delta)
-    var moving_now: bool = direction.length_squared() > 0.01
+    var before_move: Vector3 = global_position
     var speed := 4.2 if dash_time <= 0.0 else 9.0
     velocity.x = direction.x * speed
     velocity.z = direction.z * speed
@@ -147,6 +150,9 @@ func _physics_process(delta: float) -> void:
     move_and_slide()
     global_position.x = clampf(global_position.x, -20.0, 20.0)
     global_position.z = clampf(global_position.z, -20.0, 20.0)
+    # L'intenzione di movimento non basta: contro un ostacolo si resta fermi.
+    var moved := Vector2(global_position.x-before_move.x,global_position.z-before_move.z)
+    var moving_now: bool = moved.length() > maxf(delta,.001)*.12
     if action_timer <= 0.0:
         visual.play_clip("Walk" if moving_now else "Idle", 1.15)
     var enemy = game.closest_enemy(global_position, 1.95)
@@ -203,8 +209,10 @@ func receive_damage(amount: float) -> void:
     hp = maxf(0.0, hp - amount * DAMAGE_MULTIPLIER)
     _update_health_bar()
     if hp <= 0.0:
+        game.salvage.drop_carried()
         hp = 100.0
         _update_health_bar()
         global_position = Vector3(0, 0.16, 6.7)
         game.coins = maxi(0, int(game.coins * 0.8))
         game.show_message("Sei tornato al rifugio. Hai perso il 20% delle monete.", 3.0)
+        game._save_progress()

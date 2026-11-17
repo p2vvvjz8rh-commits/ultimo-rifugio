@@ -1,0 +1,19 @@
+# File generati da Godot e dall'ambiente locale
+.godot/
+.godot_portatile/
+build/
+salvataggi/
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+# Stato e log dell'aggiornatore: non versionare copie locali
+aggiornamenti/ultimo_commit.txt
+aggiornamenti/log_aggiornamenti.txt
+aggiornamenti/backup_*/
+# Non aggiungere bozze narrative private al repository pubblico
+*.spoiler-draft
+
+# Archivi portatili generati dal builder Windows
+Ultimo_Rifugio_*_Windows_Portatile.zip

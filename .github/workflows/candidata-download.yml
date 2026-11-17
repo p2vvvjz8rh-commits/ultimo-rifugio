@@ -1,0 +1,85 @@
+name: Download stabile della candidata verificata
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/candidata-download.yml]
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  download-stabile:
+    if: github.repository == 'p2vvvjz8rh-commits/ultimo-rifugio' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'sviluppo-agenti'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_SHA: e4c25fa50853d313b8e7abcab3a67e381a830038
+      CANDIDATE_TAG: candidata-orbita-e4c25fa
+      VERIFIED_RUN: '43928443335'
+    steps:
+      - name: Verifica provenienza e controlli della candidata originale
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN" --jq .head_sha)" = "$CANDIDATE_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$VERIFIED_RUN" --jq .conclusion)" = success
+      - name: Recupera esattamente il pacchetto gia collaudato automaticamente
+        uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-candidata-Windows-e4c25fa50853d313b8e7abcab3a67e381a830038
+          run-id: 43928443335
+          github-token: ${{ github.token }}
+          path: candidata
+      - name: Verifica file e crea lo ZIP
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 - <<'PY'
+          import pathlib, hashlib, os, zipfile
+          folder = pathlib.Path('candidata')
+          assert (folder/'COMMIT.txt').read_text().strip() == os.environ['CANDIDATE_SHA']
+          assert (folder/'CANDIDATA_PORTATILE.txt').is_file()
+          for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
+              digest, name = line.split(maxsplit=1)
+              assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
+          archive = pathlib.Path('UltimoRifugio-candidata-orbita-e4c25fa.zip')
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+              for item in sorted(folder.iterdir()):
+                  assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
+                  bundle.write(item, item.name)
+          with zipfile.ZipFile(archive) as bundle:
+              assert bundle.testzip() is None
+          PY
+      - name: Rendi scaricabile la candidata senza modificare main
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if gh release view "$CANDIDATE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'La prerelease esiste gia: non viene sovrascritta.'
+            exit 0
+          fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
+          cat > note-candidata.txt <<'NOTES'
+          Pacchetto separato per il collaudo della camera orbitale a 360 gradi.
+
+          Scarica lo ZIP, estrai tutti i file in una NUOVA cartella e apri AVVIA_CANDIDATA.bat.
+          Prova il movimento contro i muri, i danni visti dal cortile e la resistenza della capanna.
+          Tieni premuta la rotella e trascina: orizzontale ruota a 360 gradi attorno al protagonista, verticale inclina.
+          Home ripristina la visuale iniziale; la rotella libera mantiene lo zoom.
+          WASD segue la camera ruotata, mentre il clic di movimento resta coerente col punto indicato.
+          Orbita e zoom sono disponibili anche in pausa; nessuna traslazione laterale.
+
+          Stessi file della candidata e4c25fa gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
+          Capanna: danni ricevuti ridotti del 65%, HP massimi e salvataggi v8 invariati.
+          Conservate le meccaniche precedentemente collaudate di cancello, riparazioni e recupero.
+          Conservare CANDIDATA_PORTATILE.txt per mantenere separati i dati del collaudo.
+
+          Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
+          NOTES
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-orbita-e4c25fa.zip \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --prerelease --latest=false --title 'Candidata orbita 360 gradi e4c25fa — solo collaudo' \
+            --notes-file note-candidata.txt

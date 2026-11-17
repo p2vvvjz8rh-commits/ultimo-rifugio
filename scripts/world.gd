@@ -1,5 +1,5 @@
 extends Node3D
-## ALFA 13 - paesaggio rifinito e missione radio opzionale.
+## Candidata di sviluppo: manutenzione, paesaggio e recupero materiali.
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
@@ -12,6 +12,11 @@ const BENCH_REPAIR_COST := 8
 const BENCH_REPAIR_AMOUNT := 100.0
 const BENCH_HP_MAX := 130.0
 const CABIN_HP_MAX := 150.0
+const CABIN_DAMAGE_MULTIPLIER := .35
+const CAMERA_ORBIT_RADIUS := 22.0
+const CAMERA_DEFAULT_PITCH := deg_to_rad(40.0)
+const CAMERA_MIN_PITCH := deg_to_rad(20.0)
+const CAMERA_MAX_PITCH := deg_to_rad(75.0)
 
 var rng := RandomNumberGenerator.new()
 var materials := {}
@@ -23,11 +28,21 @@ var fence_root: Node3D
 var gate_left: Node3D
 var gate_right: Node3D
 var gate_left_collision: CollisionShape3D
+var gate_barrier: CollisionShape3D
+var manual_target: String = ""
 var gate_right_collision: CollisionShape3D
 var wall_segments: Array[Dictionary] = []
 var gate_hp: float = GATE_HP_MAX
 var gate_indicator: Label3D
 var camera_distance: float = 1.0
+var camera_yaw: float = 0.0
+var camera_pitch: float = CAMERA_DEFAULT_PITCH
+var camera_yaw_current: float = 0.0
+var camera_pitch_current: float = CAMERA_DEFAULT_PITCH
+var camera_radius_current: float = CAMERA_ORBIT_RADIUS
+var camera_focus := Vector3.ZERO
+var camera_dragging: bool = false
+var camera_previous_mouse_mode := Input.MOUSE_MODE_VISIBLE
 var enemy_indicator_root: Control
 var enemy_indicators: Array[Label] = []
 var noise_spawn_cooldown: float = 0.0
@@ -68,6 +83,7 @@ var repair_bench_label: Label3D
 var bench_hint_time: float = 0.0
 var new_game_dialog: ConfirmationDialog
 var skip_save_on_exit: bool = false
+var save_backup_ready: bool = true
 var supply_caches: Array[Dictionary] = []
 var collected_supplies: int = 0
 var supply_goal: int = 4
@@ -86,6 +102,7 @@ var test_panel: PanelContainer
 var test_panel_visible: bool = false
 var test_stats: Label
 var radio_station
+var salvage
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -94,20 +111,31 @@ func _ready() -> void:
     _create_cabin()
     _create_forest()
     _decorate_world()
+    _dress_landscape()
     _create_hero()
     _create_radio_station()
+    salvage = preload("res://scripts/salvage_activity.gd").new()
+    add_child(salvage)
+    salvage.configure(self)
     _create_camera()
     _create_hud()
+    DisplayServer.window_set_title("Ultimo Rifugio · " + _candidate_identity())
+    print("Ultimo Rifugio · " + _candidate_identity())
     _load_progress()
     _spawn_initial_enemies()
     _spawn_supply_cache()
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("ALFA 13: esplora a EST, trova la radio e premi R per una missione!", 6.0)
+    show_message("ALFA 14: clic destro per ispezionare; F per recuperare materiali a OVEST.",6.0)
+    if not save_backup_ready:
+        show_message("Backup della partita non riuscito: salvataggio sospeso per proteggere i dati.",30.0)
 
 func _process(delta: float) -> void:
+    if camera_dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+        _end_camera_drag()
     if paused:
+        _update_camera(delta)
         return
     if last_mouse_button and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
         last_mouse_button = false
@@ -135,9 +163,29 @@ func _process(delta: float) -> void:
         _save_progress()
 
 func _input(event: InputEvent) -> void:
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
+        if event.pressed and not repair_popup.visible and not new_game_dialog.visible:
+            camera_dragging = true
+            last_mouse_button = false
+            hero.clear_mouse_destination()
+            camera_previous_mouse_mode = Input.mouse_mode
+            if DisplayServer.get_name() != "headless":
+                Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+        else:
+            _end_camera_drag()
+        get_viewport().set_input_as_handled()
+        return
+    if event is InputEventMouseMotion and camera_dragging:
+        _orbit_camera(event.relative)
+        get_viewport().set_input_as_handled()
+        return
     if event is InputEventKey and event.pressed and not event.echo:
         match event.keycode:
+            KEY_HOME:
+                camera_yaw = 0.0
+                camera_pitch = CAMERA_DEFAULT_PITCH
             KEY_ESCAPE:
+                _end_camera_drag()
                 paused = not paused
                 show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
             KEY_Q:
@@ -156,13 +204,22 @@ func _input(event: InputEvent) -> void:
                 if not paused: _test_start_raid()
             KEY_F3:
                 _toggle_test_panel()
+            KEY_F:
+                if not paused: salvage.interact()
             KEY_R:
                 if not paused and is_instance_valid(radio_station):
                     radio_station.activate()
 
 func _unhandled_input(event: InputEvent) -> void:
+    if camera_dragging and event is InputEventMouseButton and event.button_index in [MOUSE_BUTTON_LEFT,MOUSE_BUTTON_RIGHT]:
+        get_viewport().set_input_as_handled()
+        return
     # I controlli da tastiera sono intercettati in _input anche dopo aver cliccato un pulsante UI.
-    if event is InputEventMouseButton and event.pressed and not paused:
+    if event is InputEventMouseButton and event.pressed:
+        if event.button_index == MOUSE_BUTTON_RIGHT and not paused:
+            _inspect_structure(event.position)
+            get_viewport().set_input_as_handled()
+            return
         if event.button_index == MOUSE_BUTTON_WHEEL_UP:
             camera_distance = maxf(0.62, camera_distance - 0.10)
             get_viewport().set_input_as_handled()
@@ -201,6 +258,7 @@ func _box(parent: Node3D, title: String, pos: Vector3, size: Vector3, color_hex:
     var shape := BoxMesh.new()
     shape.size = size
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -216,6 +274,7 @@ func _cone(parent: Node3D, title: String, pos: Vector3, radius: float, height: f
     shape.height = height
     shape.radial_segments = 7
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -230,6 +289,7 @@ func _rock(parent: Node3D, title: String, pos: Vector3, scale_3d: Vector3, color
     shape.radial_segments = 7
     shape.rings = 4
     instance.name = title
+    instance.set_meta("visual_role",title)
     instance.mesh = shape
     instance.material_override = _mat(color_hex)
     instance.position = pos
@@ -250,14 +310,14 @@ func _create_environment() -> void:
     sky.sky_material = sky_material
     environment.sky = sky
     environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-    environment.ambient_light_energy = 0.65
+    environment.ambient_light_energy = 0.50
     world_environment.environment = environment
     add_child(world_environment)
     var sun := DirectionalLight3D.new()
     sun.name = "Sole_del_pomeriggio"
     sun.rotation_degrees = Vector3(-58.0, -32.0, 0.0)
     sun.light_color = Color("#ffe3ad")
-    sun.light_energy = 1.35
+    sun.light_energy = 1.0
     sun.shadow_enabled = true
     add_child(sun)
 
@@ -356,6 +416,7 @@ func _create_cabin() -> void:
         if item is MeshInstance3D and String(item.name) != "Fondamenta":
             cabin_meshes.append(item as MeshInstance3D)
     cabin_visual = _make_structure_visual(base,"cabin",CABIN_HP_MAX,Vector3(0.0,4.05,0.0))
+    cabin_visual.bind_meshes(cabin_meshes)
 
 func _decorate_world() -> void:
     # Rocce, ciuffi, terra smossa e tronchi statici: nessuna nuova meccanica.
@@ -401,7 +462,7 @@ func _create_forest() -> void:
         var pos := Vector2(rng.randf_range(-20.0, 20.0), rng.randf_range(-20.0, 20.0))
         if absf(pos.x) < 6.6 and pos.y > -9.0 and pos.y < 7.8:
             continue
-        if pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
+        if _near_salvage_site(pos) or pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
             continue
         if pos.length() < 10.5 and rng.randf() < .75:
             continue
@@ -455,17 +516,29 @@ func _create_radio_station() -> void:
 
 func _create_camera() -> void:
     camera = Camera3D.new()
-    camera.name = "Telecamera_inclinata"
+    camera.name = "Telecamera_orbitale"
     camera.current = true
     camera.fov = 47.0
-    camera.position = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
+    camera_focus = hero.global_position+Vector3.UP*1.15
+    camera_radius_current = CAMERA_ORBIT_RADIUS*camera_distance
     add_child(camera)
-    camera.look_at(hero.global_position + Vector3(0, 1.15, -1.9), Vector3.UP)
+    _update_camera(1.0)
 
 func _update_camera(delta: float) -> void:
-    var desired: Vector3 = hero.global_position + Vector3(0, 14.5, 16.5) * camera_distance
-    camera.global_position = camera.global_position.lerp(desired, clampf(delta * 3.0, 0.0, 1.0))
-    camera.look_at(hero.global_position + Vector3(0, 1.15, -2.0), Vector3.UP)
+    camera_focus = camera_focus.lerp(hero.global_position+Vector3.UP*1.15,clampf(delta*3.0,0.0,1.0))
+    var weight: float = clampf(delta*10.0,0.0,1.0)
+    camera_yaw_current = wrapf(lerp_angle(camera_yaw_current,camera_yaw,weight),-PI,PI)
+    camera_pitch_current = lerpf(camera_pitch_current,camera_pitch,weight)
+    camera_radius_current = lerpf(camera_radius_current,CAMERA_ORBIT_RADIUS*camera_distance,weight)
+    var horizontal: float = cos(camera_pitch_current)*camera_radius_current
+    var offset := Vector3(sin(camera_yaw_current)*horizontal,sin(camera_pitch_current)*camera_radius_current,cos(camera_yaw_current)*horizontal)
+    # La posizione viene calcolata sull'orbita: niente scorciatoie attraverso il centro.
+    camera.global_position = camera_focus+offset
+    camera.look_at(camera_focus,Vector3.UP)
+
+func _orbit_camera(relative: Vector2) -> void:
+    camera_yaw = wrapf(camera_yaw-relative.x*.006,-PI,PI)
+    camera_pitch = clampf(camera_pitch+relative.y*.004,CAMERA_MIN_PITCH,CAMERA_MAX_PITCH)
 
 func _spawn_initial_enemies() -> void:
     # Presenze vicine ma fuori dal cortile: visibili anche prima della prima orda.
@@ -482,7 +555,7 @@ func _spawn_enemy(at: Vector3, variant: String, wave: bool) -> void:
     enemies.append(mob)
 
 func has_clear_path(from_point: Vector3, to_point: Vector3) -> bool:
-    var query := PhysicsRayQueryParameters3D.create(from_point+Vector3.UP*1.0,to_point+Vector3.UP*1.0,1)
+    var query := PhysicsRayQueryParameters3D.create(from_point+Vector3.UP*1.0,to_point+Vector3.UP*1.0,5)
     var collision: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
     return collision.is_empty()
 
@@ -666,26 +739,13 @@ func _make_structure_visual(parent: Node3D, kind: String, maximum: float, local_
 func _sync_structure_visuals() -> void:
     if is_instance_valid(cabin_visual):
         cabin_visual.set_health(base_hp)
-        for item in cabin_meshes:
-            if is_instance_valid(item):
-                var title: String = String(item.name)
-                var missing_roof: bool = base_hp > 0.0 and base_hp < CABIN_HP_MAX*.5 and title == "Tetto_sinistro"
-                item.visible = title == "Fondamenta" or (base_hp > 0.0 and not missing_roof)
     if is_instance_valid(gate_visual):
         gate_visual.set_health(gate_hp)
         if is_instance_valid(gate_left) and is_instance_valid(gate_right):
             gate_left.visible = gate_hp > 0.0
             gate_right.visible = gate_hp > 0.0
-            gate_left.rotation.z = .18 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
-            gate_right.rotation.z = -.12 if gate_hp > 0.0 and gate_hp < GATE_HP_MAX*.5 else 0.0
     if is_instance_valid(bench_visual):
         bench_visual.set_health(bench_hp)
-    if is_instance_valid(repair_bench):
-        var idx: int = 0
-        for child in repair_bench.get_children():
-            if child is MeshInstance3D:
-                child.visible = bench_hp > 0.0 and not (bench_hp < BENCH_HP_MAX*.5 and idx == 2)
-                idx += 1
     for wall in wall_segments:
         var hp_now: float = float(wall["hp"])
         var component = wall["durability"]
@@ -695,11 +755,6 @@ func _sync_structure_visuals() -> void:
         old.visible = false
         var crack: MeshInstance3D = wall["crack"]
         crack.visible = false
-        var meshes: Array = wall["visuals"]
-        for i in range(meshes.size()):
-            var mesh: MeshInstance3D = meshes[i]
-            if is_instance_valid(mesh):
-                mesh.visible = hp_now > 0.0 and not (hp_now < WALL_HP_MAX*.5 and i % 5 == 0)
         var collision: CollisionShape3D = wall["collider"]
         if hp_now <= 0.0 and not collision.disabled:
             collision.set_deferred("disabled",true)
@@ -713,7 +768,7 @@ func _create_test_panel(root: Control) -> void:
     test_panel.name = "Controlli_test"
     test_panel.anchor_left = 1.0
     test_panel.anchor_right = 1.0
-    test_panel.offset_left = -250
+    test_panel.offset_left = -320
     test_panel.offset_right = -16
     test_panel.offset_top = 132
     test_panel.offset_bottom = 610
@@ -736,6 +791,8 @@ func _create_test_panel(root: Control) -> void:
     var restore := _button(column,"RIPARA TUTTO (TEST)")
     restore.pressed.connect(_test_repair_all)
     test_stats = _label(column,"",12,Color("#e1e0bf"))
+    test_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    test_stats.custom_minimum_size.x = 280
 
 func _test_heal_hero() -> void:
     hero.hp = 100.0
@@ -817,6 +874,7 @@ func _create_repair_bench() -> void:
     repair_bench.add_child(repair_bench_label)
     _register_occluders(repair_bench)
     bench_visual = _make_structure_visual(repair_bench,"bench",BENCH_HP_MAX,Vector3(0.0,2.18,0.0))
+    bench_visual.bind_meshes(repair_bench.get_children().filter(func(item): return item is MeshInstance3D))
 
 func _use_repair_bench() -> void:
     if not stockade_built or repair_bench == null or not is_instance_valid(repair_bench):
@@ -828,6 +886,7 @@ func _use_repair_bench() -> void:
     if hero.global_position.distance_to(repair_bench.global_position) > 4.4:
         show_message("Avvicinati al banco nel cortile, poi premi E.",2.0)
         return
+    manual_target = ""
     _refresh_repair_menu()
     repair_popup.popup_centered()
 
@@ -854,6 +913,11 @@ func _refresh_repair_menu() -> void:
         var selected: String = str(item["type"])
         option.pressed.connect(func(): _repair_selected(selected))
         body.add_child(option)
+    var all_option := Button.new()
+    all_option.text = "Ripara tutto completamente | %d legno" % REPAIR_COST
+    all_option.disabled = not _has_damaged_defenses() or wood < REPAIR_COST
+    all_option.pressed.connect(_repair_all_at_bench)
+    body.add_child(all_option)
     var close := Button.new()
     close.text = "Chiudi"
     close.pressed.connect(func(): repair_popup.hide())
@@ -867,12 +931,23 @@ func _max_wall_damage() -> float:
 
 func _repair_selected(kind: String) -> void:
     var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
-    if wood < cost or bench_hp <= 0.0:
+    var manual: bool = manual_target != ""
+    var location: Vector3 = _manual_position(kind) if manual else repair_bench.global_position
+    if paused or wood < cost or hero.global_position.distance_to(location) > 4.4 or (manual and kind != manual_target) or (not manual and bench_hp <= 0.0):
         repair_popup.hide()
         return
     var applied: float = 0.0
     var repaired_name: String = ""
     var feedback_position: Vector3 = _structure_position(kind)
+    if kind.begins_with("wall:"):
+        var index: int = int(kind.get_slice(":",1))
+        if index < 0 or index >= wall_segments.size():
+            return
+        var section: Dictionary = wall_segments[index]
+        applied = minf(WALL_HP_MAX-float(section["hp"]),BENCH_REPAIR_AMOUNT)
+        section["hp"] = float(section["hp"]) + applied
+        repaired_name = str(section["name"])
+        feedback_position = section["position"] + Vector3.UP
     match kind:
         "wall":
             var target: Dictionary = {}
@@ -979,11 +1054,22 @@ func _build_stockade() -> void:
     _wall_collision("Parete_frontale_sinistra", Vector3(-3.4,1.12,front_z), Vector3(3.8,2.24,.50))
     _wall_collision("Parete_frontale_destra", Vector3(3.4,1.12,front_z), Vector3(3.8,2.24,.50))
     # Anche le ante hanno collider, legati allo stesso nodo che ruota.
+    var barrier_body := StaticBody3D.new()
+    barrier_body.collision_layer = 4 # Blocco fisso riservato agli zombie.
+    barrier_body.collision_mask = 0
+    fence_root.add_child(barrier_body)
+    gate_barrier = CollisionShape3D.new()
+    var barrier_shape := BoxShape3D.new()
+    barrier_shape.size = Vector3(2.88,2.6,.3)
+    gate_barrier.shape = barrier_shape
+    gate_barrier.position = Vector3(0,1.3,4)
+    barrier_body.add_child(gate_barrier)
     gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.72,1.03,0.0))
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.72,1.03,0.0))
     gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
     _sync_gate_collision(false)
     gate_visual = _make_structure_visual(fence_root,"gate",GATE_HP_MAX,Vector3(0.0,3.0,4.0))
+    gate_visual.bind_meshes(gate_left.get_children() + gate_right.get_children())
     _create_repair_bench()
     _register_occluders(fence_root)
 
@@ -1005,10 +1091,17 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     var visuals: Array[MeshInstance3D] = []
     var rail := _box(fence_root,"Trave_della_sezione_" + title,Vector3(center.x,1.06,center.z),Vector3(size.x,.24,size.z),"#674a32")
     for obj in fence_root.get_children():
-        if obj is MeshInstance3D and (obj.name.begins_with("Asse") or obj.name.begins_with("Punta")):
-            if absf(obj.position.x - center.x) <= size.x * 0.45 and absf(obj.position.z - center.z) <= size.z * 0.45:
+        if not obj is MeshInstance3D or obj.get_meta("defense_bound",false):
+            continue
+        var role: String = str(obj.get_meta("visual_role",String(obj.name)))
+        if role == "Asse" or role == "Punta":
+            if absf(obj.position.x-center.x) <= size.x*.5+.01 and absf(obj.position.z-center.z) <= size.z*.5+.01:
                 visuals.append(obj)
+                obj.set_meta("defense_bound",true)
     visuals.append(rail)
+    if size.z > size.x:
+        durability.rotation.y = PI*.5
+    durability.bind_meshes(visuals)
     # Segno di danno visivo localizzato: compare quando la sezione perde meta salute.
     var crack := _box(fence_root,"Asse_scheggiata_" + title,Vector3(center.x,1.35,center.z + size.z*.5 + .035),Vector3(minf(size.x*.65,1.15),.11,.09),"#4a3123",-.34)
     if size.x < size.z:
@@ -1067,8 +1160,8 @@ func defense_target(from_position: Vector3) -> Vector3:
         return Vector3(0.0,0.0,-3.6)
     if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
         return Vector3(0.0,0.0,-3.6)
-    if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
-        return Vector3(0.0,0.0,5.05)
+    if from_position.z > 3.45 and absf(from_position.x) < 1.35:
+        return Vector3(0.0,0.0,5.05) if not gate_broken else Vector3(0.0,0.0,2.5)
     # Una breccia permette il passaggio, ma solo in quel tratto.
     var breach_distance: float = 7.0
     var breach_target: Vector3 = Vector3.ZERO
@@ -1160,7 +1253,9 @@ func _gate_collision(leaf: Node3D, title: String, offset: Vector3) -> CollisionS
     return collider
 
 func _sync_gate_collision(is_open: bool) -> void:
-    # Disabilita soltanto le ante, mai i cinque blocchi delle mura.
+    if is_instance_valid(gate_barrier):
+        gate_barrier.set_deferred("disabled", gate_broken or gate_hp <= 0.0)
+    # Le ante animate bloccano il protagonista solo da chiuse.
     var blocking: bool = not is_open and not gate_broken
     if is_instance_valid(gate_left_collision):
         gate_left_collision.set_deferred("disabled", not blocking)
@@ -1210,7 +1305,7 @@ func damage_base(damage: float) -> void:
     # La casetta ha HP separati e viene colpita solo se lo zombie la raggiunge.
     if base_hp <= 0.0:
         return
-    base_hp = maxf(0.0, base_hp - damage)
+    base_hp = maxf(0.0, base_hp - damage*CABIN_DAMAGE_MULTIPLIER)
     _sync_structure_visuals()
     if base_hp <= 0.0:
         wood = maxi(0, wood - 10)
@@ -1267,7 +1362,7 @@ func _create_hud() -> void:
     root.add_child(left)
     var left_vbox := VBoxContainer.new()
     left.add_child(left_vbox)
-    _label(left_vbox,"ULTIMO RIFUGIO · ALFA 13",13,Color("#e6bb77"))
+    _label(left_vbox,"ULTIMO RIFUGIO · " + _candidate_identity(),13,Color("#e6bb77"))
     var start_over := Button.new()
     start_over.text = "NUOVA PARTITA"
     start_over.custom_minimum_size = Vector2(150,28)
@@ -1323,12 +1418,22 @@ func _create_hud() -> void:
     dodge_button = _button(bottom,"SCHIVA · SPAZIO")
     dodge_button.pressed.connect(func(): hero.dash())
     _create_test_panel(root)
-    var guide := _label(root,"WASD / frecce o mouse premuto: muovi   •   Zombie: attacco automatico   •   Alberi: raccolta automatica   •   E: ripara   •   R: radio   •   N: nuova partita   •   ESC: pausa",12,Color("#f0e3bb"))
+    var guide := _label(root,"WASD: muovi  •  E: banco  •  B: costruisci/ripara  •  Clic destro: ispeziona  •  F: recupera  •  R: radio  •  ESC: pausa",13,Color("#fff0ce"))
+    guide.add_theme_color_override("font_outline_color",Color("#17251c"))
+    guide.add_theme_constant_override("outline_size",5)
     guide.anchor_top = 1.0
     guide.anchor_bottom = 1.0
     guide.offset_left = 18
     guide.offset_top = -113
     guide.offset_bottom = -90
+    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: ruota a 360°  •  Home: ricentra",12,Color("#fff0ce"))
+    camera_hint.add_theme_color_override("font_outline_color",Color("#17251c"))
+    camera_hint.add_theme_constant_override("outline_size",5)
+    camera_hint.anchor_top = 1
+    camera_hint.anchor_bottom = 1
+    camera_hint.offset_left = 18
+    camera_hint.offset_top = -135
+    camera_hint.offset_bottom = -114
 
 func _button(parent: Control, caption: String) -> Button:
     var button := Button.new()
@@ -1343,6 +1448,8 @@ func _update_hud() -> void:
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
     objective_hud.text = "SCORTE %d/%d  |  ORDA %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
+    if salvage.carried > 0:
+        objective_hud.text += " | CARICO %d/3 - TORNA ALLA BASE" % salvage.carried
     if is_instance_valid(radio_station) and radio_station.active:
         objective_hud.text = "DIFENDI LA RADIO: %ds  |  ORDA %d:%02d" % [ceili(radio_station.remaining),int(remain / 60),remain % 60]
     if not stockade_built:
@@ -1388,7 +1495,7 @@ func _update_occlusion(delta: float) -> void:
                 characters.append(enemy.global_position + Vector3.UP * 1.1)
         var eye: Vector3 = camera.global_position
         for mesh in occluders:
-            if not is_instance_valid(mesh) or not mesh.visible:
+            if not is_instance_valid(mesh) or not mesh.is_visible_in_tree():
                 continue
             var local_eye: Vector3 = mesh.global_transform.affine_inverse() * eye
             var bounds: AABB = mesh.get_aabb()
@@ -1409,7 +1516,7 @@ func _update_occlusion(delta: float) -> void:
         if not is_instance_valid(mesh):
             continue
         var id: int = mesh.get_instance_id()
-        var desired: float = .24 if occlusion_targets.has(id) else 1.0
+        var desired: float = _occlusion_opacity(mesh) if occlusion_targets.has(id) else 1.0
         var previous: float = float(occlusion_alpha.get(id,1.0))
         var current: float = move_toward(previous,desired,delta * 3.6)
         if current >= .999:
@@ -1508,8 +1615,17 @@ func _update_supply_caches(delta: float) -> void:
         next_cache_spawn = elapsed + 26.0
 
 func _save_directory() -> String:
-    if OS.has_feature("standalone"):
-        return OS.get_executable_path().get_base_dir().path_join("salvataggi")
+    # Il builder controlla la scena in dati temporanei, mai nella partita reale.
+    var test_directory: String = OS.get_environment("ULTIMO_RIFUGIO_TEST_DATA")
+    if OS.has_feature("editor") and not test_directory.is_empty():
+        return test_directory.path_join("salvataggi") if test_directory.is_absolute_path() else ""
+    var executable_directory: String = OS.get_executable_path().get_base_dir()
+    # Il pacchetto di collaudo resta separato dai dati di Alfa 13 anche avviando
+    # direttamente l'EXE. Fuori dalla candidata si conserva il percorso storico.
+    var portable_candidate: bool = not OS.has_feature("editor") and FileAccess.file_exists(executable_directory.path_join("CANDIDATA_PORTATILE.txt"))
+    var portable_release: bool = not OS.has_feature("editor") and FileAccess.file_exists(executable_directory.path_join("PORTATILE.txt"))
+    if OS.has_feature("standalone") or portable_candidate or portable_release:
+        return executable_directory.path_join("salvataggi")
     return ProjectSettings.globalize_path("user://salvataggi")
 
 func _wall_hp_for_save() -> Array:
@@ -1519,7 +1635,13 @@ func _wall_hp_for_save() -> Array:
     return saved
 
 func _save_progress() -> void:
+    # Durante la chiusura della scena il protagonista puo' essere gia' stato liberato.
+    # Mai creare/troncare partita.json prima di sapere che i dati sono leggibili.
+    if not is_instance_valid(hero) or not save_backup_ready:
+        return
     var directory := _save_directory()
+    if directory.is_empty():
+        return
     var result := DirAccess.make_dir_recursive_absolute(directory)
     if result != OK:
         return
@@ -1529,7 +1651,7 @@ func _save_progress() -> void:
         return
     var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
     var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
-    var data := {"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.global_position.x,"pz":hero.global_position.z,"hp":hero.hp}
+    var data := {"game_release":"alfa14","salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1544,6 +1666,10 @@ func _load_progress() -> void:
     file.close()
     if typeof(parsed) != TYPE_DICTIONARY or int(parsed.get("version",0)) != 8:
         return
+    save_backup_ready = true
+    if parsed.get("game_release","") != "alfa14":
+        save_backup_ready = _backup_before_alpha14(path)
+    salvage.load_data(parsed.get("salvage",{}))
     collected_supplies = int(parsed.get("collected_supplies",0))
     supply_goal = int(parsed.get("supply_goal",4))
     wood = int(parsed.get("wood",0))
@@ -1590,5 +1716,155 @@ func _load_progress() -> void:
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
 func _exit_tree() -> void:
-    if hero != null and not skip_save_on_exit:
+    if not skip_save_on_exit and is_instance_valid(hero):
         _save_progress()
+
+func _repair_all_at_bench() -> void:
+    if paused or bench_hp <= 0.0 or hero.global_position.distance_to(repair_bench.global_position) > 4.4:
+        repair_popup.hide()
+        return
+    _build_or_repair()
+    repair_popup.hide()
+
+func _manual_position(kind: String) -> Vector3:
+    if kind.begins_with("wall:"):
+        return wall_segments[int(kind.get_slice(":",1))]["position"]
+    if kind == "gate":
+        return Vector3(0,0,4)
+    if kind == "bench":
+        return repair_bench.global_position
+    return Vector3(0,0,-3.6)
+
+func _inspect_structure(cursor: Vector2) -> void:
+    var origin: Vector3 = camera.project_ray_origin(cursor)
+    var direction: Vector3 = camera.project_ray_normal(cursor)
+    var candidates: Array[Dictionary] = [
+        {"kind":"cabin","title":"Rifugio","hp":base_hp,"max":CABIN_HP_MAX,
+         "center":Vector3(0,1.6,-3.6),"size":Vector3(4.6,3.2,5.6)}
+    ]
+    if stockade_built:
+        candidates.append({"kind":"gate","title":"Cancello","hp":gate_hp,"max":GATE_HP_MAX,
+            "center":Vector3(0,1.1,4),"size":Vector3(2.9,2.2,.6)})
+        candidates.append({"kind":"bench","title":"Banco","hp":bench_hp,"max":BENCH_HP_MAX,
+            "center":repair_bench.global_position+Vector3.UP*.7,"size":Vector3(1.8,1.4,.92)})
+        for i in range(wall_segments.size()):
+            var section: Dictionary = wall_segments[i]
+            var size: Vector3 = (section["collider"].shape as BoxShape3D).size
+            candidates.append({"kind":"wall:%d" % i,"title":str(section["name"]),
+                "hp":float(section["hp"]),"max":WALL_HP_MAX,
+                "center":section["position"]+Vector3.UP*size.y*.5,"size":size})
+    var kind: String = ""
+    var title: String = ""
+    var health: float = 0.0
+    var maximum: float = 0.0
+    var nearest: float = INF
+    for candidate in candidates:
+        var size: Vector3 = candidate["size"]
+        var bounds := AABB(candidate["center"]-size*.5,size)
+        var hit = bounds.intersects_ray(origin,direction)
+        if hit == null:
+            continue
+        var distance: float = origin.distance_squared_to(hit)
+        if distance < nearest:
+            nearest = distance
+            kind = candidate["kind"]
+            title = candidate["title"]
+            health = candidate["hp"]
+            maximum = candidate["max"]
+    if kind == "":
+        return
+    manual_target = kind
+    hero.clear_mouse_destination()
+    last_mouse_button = false
+    var body: VBoxContainer = repair_popup.get_node("Menu")
+    for child in body.get_children():
+        body.remove_child(child)
+        child.queue_free()
+    var label := Label.new()
+    label.text = "%s | %d / %d HP" % [title,ceili(health),int(maximum)]
+    body.add_child(label)
+    var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
+    var near: bool = hero.global_position.distance_to(_manual_position(kind)) <= 4.4
+    var button := Button.new()
+    button.text = "Ripara | %d legno" % cost if near else "Avvicinati per riparare"
+    button.disabled = not near or wood < cost or health >= maximum
+    button.pressed.connect(func(): _repair_selected(kind))
+    body.add_child(button)
+    var close := Button.new()
+    close.text = "Chiudi"
+    close.pressed.connect(func(): repair_popup.hide())
+    body.add_child(close)
+    repair_popup.popup_centered()
+
+func _near_salvage_site(point: Vector2) -> bool:
+    for place in [Vector2(-13,10),Vector2(-17,0),Vector2(-13,-13)]:
+        if point.distance_to(place) < 3.4:
+            return true
+    return false
+
+func _dress_landscape() -> void:
+    var detail_rng := RandomNumberGenerator.new()
+    detail_rng.seed = 98143
+    var dressing := Node3D.new()
+    dressing.name = "Dettagli_del_bosco"
+    add_child(dressing)
+    for index in range(65):
+        var at := Vector3(detail_rng.randf_range(-22,22),.015,detail_rng.randf_range(-22,22))
+        if (absf(at.x) < 6 and at.z > -9 and at.z < 6) or _near_salvage_site(Vector2(at.x,at.z)):
+            continue
+        var patch := _cone(dressing,"Lettiera",at,.5+detail_rng.randf()*.8,.018,"#69744c",.55)
+        patch.rotation.y = detail_rng.randf_range(0,TAU)
+        for leaf in range(3):
+            var fern := _box(dressing,"Felce",at+Vector3(float(leaf-1)*.13,.13,0),Vector3(.08,.025,.55),"#47774b")
+            fern.rotation = Vector3(-.25,float(leaf)*1.2,.3)
+    for side in [-1,1]:
+        for index in range(6):
+            _rock(dressing,"Bordo_sentiero",Vector3(float(side)*(1.0+float(index)*.07),.04,4.8+float(index)*.85),Vector3(.18,.10,.24),"#9a9881")
+    var base_details := Node3D.new()
+    base_details.name = "Attrezzi_e_scorte"
+    add_child(base_details)
+    for index in range(4):
+        _box(base_details,"Tavole_di_scorta",Vector3(3.8,.12+float(index)*.12,-5.4),Vector3(.65,.10,1.7),"#9d7952")
+    _box(base_details,"Supporto_attrezzi",Vector3(-3.8,.6,-5.5),Vector3(.13,1.2,.13),"#72543a")
+    _box(base_details,"Manico_vanga",Vector3(-3.8,.8,-5.5),Vector3(.065,1.2,.065),"#bf9a67",.18)
+    _box(base_details,"Ferro_vanga",Vector3(-3.67,.23,-5.5),Vector3(.27,.34,.08),"#747e7b",.18)
+    _register_occluders(base_details)
+
+func _occlusion_opacity(mesh: MeshInstance3D) -> float:
+    # Le fratture devono restare leggibili anche dal cortile durante l'occlusione.
+    return .65 if mesh.get_meta("damaged_structure",false) else .24
+
+func _candidate_identity() -> String:
+    var release: String = "ALFA 14"
+    if OS.has_feature("editor"):
+        return release + " · SVILUPPO"
+    var directory: String = OS.get_executable_path().get_base_dir()
+    if FileAccess.file_exists(directory.path_join("CANDIDATA_PORTATILE.txt")):
+        var path: String = directory.path_join("COMMIT.txt")
+        if FileAccess.file_exists(path):
+            var revision: String = FileAccess.get_file_as_string(path).strip_edges()
+            if revision.length() == 40 and revision.is_valid_hex_number():
+                return "CANDIDATA " + revision.left(7)
+        return "CANDIDATA"
+    return release
+
+func _backup_before_alpha14(path: String) -> bool:
+    var backup: String = path.get_base_dir().path_join("partita_pre_alfa14.json")
+    if FileAccess.file_exists(backup):
+        backup = path.get_base_dir().path_join("partita_pre_alfa14_%d_%d.json" % [int(Time.get_unix_time_from_system()),Time.get_ticks_usec()])
+    if DirAccess.dir_exists_absolute(backup):
+        push_warning("Destinazione del backup non valida: la partita originale resta protetta.")
+        return false
+    if DirAccess.copy_absolute(path,backup) != OK:
+        push_warning("Backup pre Alfa 14 non riuscito: la partita originale non verra' sovrascritta.")
+        return false
+    return FileAccess.get_file_as_bytes(path) == FileAccess.get_file_as_bytes(backup)
+
+func _end_camera_drag() -> void:
+    camera_dragging = false
+    if DisplayServer.get_name() != "headless" and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+        Input.mouse_mode = camera_previous_mouse_mode
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+        _end_camera_drag()

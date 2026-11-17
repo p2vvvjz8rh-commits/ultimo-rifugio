@@ -1,0 +1,27 @@
+ULTIMO RIFUGIO - PROCEDURA DI SVILUPPO ASSISTITO
+================================================
+Procedura aggiornata per Alfa 14. Documentazione tecnica senza anticipazioni.
+
+- Lo sviluppo continua su sviluppo-agenti o rami dedicati. Main alimenta
+  l'aggiornatore Windows: il merge distribuisce davvero un aggiornamento.
+- La PR esegue import, avvio, salvataggio e riapertura con Godot 4.7.2;
+  suite gameplay e geometria; esportazione; EXE Windows headless.
+- La distribuzione Alfa 14 aggiunge un controllo Windows del pacchetto stabile:
+  fixture v8 precedente, backup identico, progressi e riapertura, in modalita'
+  portatile e nel percorso storico del profilo di Alfa 13.
+- Il rendering interattivo resta distinto dai controlli headless. Il tester
+  valuta resa e sensazioni di gioco; non deve amministrare GitHub o compilare.
+- Il JSON resta v8. config/name resta quello storico per conservare user://.
+  Il titolo mostrato al giocatore e' indipendente dall'identita' dei dati.
+- Il builder isola il controllo scena con ULTIMO_RIFUGIO_TEST_DATA, conserva
+  l'ambiente precedente e non inserisce salvataggi locali nello ZIP portatile.
+- Una partita precedente viene copiata in partita_pre_alfa14.json prima
+  del primo salvataggio Alfa 14. Se il backup fallisce, scrittura bloccata.
+- L'aggiornatore conserva sorgenti/binari precedenti e ripristina in caso
+  di compilazione fallita. Il tag alfa-13 conserva la base precedente.
+- Solo dopo l'autorizzazione alla pubblicazione e tutti i controlli verdi:
+  preparare PR verificabile, unire con SHA atteso e creare il tag alfa-14
+  sul merge. Il workflow pubblica lo ZIP stabile soltanto dopo i controlli
+  ripetuti su quel tag. Non ripubblicare o sovrascrivere una release esistente.
+- Le candidate restano prerelease separate; non attivano l'aggiornatore.
+- Tutti i resoconti, commit e note di release devono restare privi di spoiler.

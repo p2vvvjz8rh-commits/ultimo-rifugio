@@ -46,3 +46,12 @@ Queste sono idee di sviluppo, NON tutte realizzate ora.
   con zombie gia' disponibili, ricompense, cooldown e progressi salvati.
 - Rifiniture della casetta (tetto, portico e lanterna) e vegetazione del bosco.
 - Nessuna delle quattro modifiche rinviate e' stata inclusa in questa versione.
+
+8. ALFA 14 - IMPLEMENTATO
+- Cancello riservato al protagonista fino alla distruzione e attacchi zombie alle difese.
+- Ripara tutto al banco, selezione/ispezione/riparazione delle singole strutture.
+- Tre stati geometrici e crollo delle costruzioni, ambiente e base arricchiti.
+- Recupero materiali facoltativo con carico, consegna e rischio crescente.
+- Camera orbitale a 360 gradi con rotella premuta, inclinazione e movimento coerente.
+- Rifiniture locomozione, maggiore resistenza della capanna e backup dei salvataggi.
+- Difese avanzate, fosse e percorsi obbligati restano rinviati.
