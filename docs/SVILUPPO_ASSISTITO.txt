@@ -1,44 +1,27 @@
 ULTIMO RIFUGIO - PROCEDURA DI SVILUPPO ASSISTITO
-===================================================
-STATO: configurazione agenti sul ramo sviluppo-agenti, NON una nuova release.
+================================================
+Procedura aggiornata per Alfa 14. Documentazione tecnica senza anticipazioni.
 
-1. Ogni funzionalita' viene sviluppata in un ramo, non direttamente in main.
-   Il launcher Windows dell'utente scarica il commit piu' recente di main.
-   Per questo una pubblicazione intermedia puo' causare una compilazione
-   indesiderata o interrompere una versione stabile.
-
-2. Controlli automatici: le PR contro main attivano il workflow
-   .github/workflows/godot-headless.yml che scarica Godot 4.7.2 Linux,
-   importa il progetto, avvia la scena per 15 frame e controlla gli errori.
-   E' un controllo iniziale, NON equivale a giocare o a esportare Windows.
-
-3. Sul Cloud Codex: controllare che gli script install_script e start_skill
-   pubblicati nell'ambiente siano quelli effettivamente attivi. Al momento
-   il setup iniziale riportava Godot 4.6.3; in ambiente nuovo allineare
-   Godot a 4.7.2 prima delle verifiche definitive. La configurazione Codex
-   del sito e separata dai file GitHub: questa procedura non la modifica.
-
-4. Protezione: non modificare manualmente partita.json; non introdurre
-   nuove migrazioni senza verificare la compatibilita'. Il progetto
-   crea un backup quando si sceglie una nuova partita.
-
-5. I contenuti narrativi sono affidati all'assistente e tenuti volutamente
-   fuori dai messaggi di rilascio. Non mettere spoiler nei titoli dei commit,
-   nei log di test, nei file README o nei riepiloghi per il giocatore.
-   ATTENZIONE: un repository pubblico non e' segreto. Le scene effettivamente
-   incluse nel gioco possono essere lette dagli utenti che aprono i sorgenti.
-
-6. Nuova release: dopo il completamento dei test, unire il ramo in main
-   soltanto quando si desidera davvero distribuire una nuova versione.
-   Descrivere apertamente le meccaniche, mai la trama futura.
-
-7. Indagini aperte:
-   - Verificare in Godot il bug di chiusura/salvataggio segnalato su world.gd
-     (guardia aggiunta sul ramo di sviluppo per hero gia' liberato).
-   - Provare un caricamento/salvataggio reale con un salvataggio temporaneo.
-   - Confrontare il rendering e le collisioni con la build Windows.
-   - Valutare test piu' completi solo dopo il primo test di import/avvio.
-
-RIASSUNTO PER IL TESTER
-La versione disponibile sul desktop rimane Alfa 13 fino al merge in main.
-Le modifiche sul ramo sviluppo-agenti non richiedono intervento sul PC.
+- Lo sviluppo continua su sviluppo-agenti o rami dedicati. Main alimenta
+  l'aggiornatore Windows: il merge distribuisce davvero un aggiornamento.
+- La PR esegue import, avvio, salvataggio e riapertura con Godot 4.7.2;
+  suite gameplay e geometria; esportazione; EXE Windows headless.
+- La distribuzione Alfa 14 aggiunge un controllo Windows del pacchetto stabile:
+  fixture v8 precedente, backup identico, progressi e riapertura, in modalita'
+  portatile e nel percorso storico del profilo di Alfa 13.
+- Il rendering interattivo resta distinto dai controlli headless. Il tester
+  valuta resa e sensazioni di gioco; non deve amministrare GitHub o compilare.
+- Il JSON resta v8. config/name resta quello storico per conservare user://.
+  Il titolo mostrato al giocatore e' indipendente dall'identita' dei dati.
+- Il builder isola il controllo scena con ULTIMO_RIFUGIO_TEST_DATA, conserva
+  l'ambiente precedente e non inserisce salvataggi locali nello ZIP portatile.
+- Una partita precedente viene copiata in partita_pre_alfa14.json prima
+  del primo salvataggio Alfa 14. Se il backup fallisce, scrittura bloccata.
+- L'aggiornatore conserva sorgenti/binari precedenti e ripristina in caso
+  di compilazione fallita. Il tag alfa-13 conserva la base precedente.
+- Solo dopo l'autorizzazione alla pubblicazione e tutti i controlli verdi:
+  preparare PR verificabile, unire con SHA atteso e creare il tag alfa-14
+  sul merge. Il workflow pubblica lo ZIP stabile soltanto dopo i controlli
+  ripetuti su quel tag. Non ripubblicare o sovrascrivere una release esistente.
+- Le candidate restano prerelease separate; non attivano l'aggiornatore.
+- Tutti i resoconti, commit e note di release devono restare privi di spoiler.

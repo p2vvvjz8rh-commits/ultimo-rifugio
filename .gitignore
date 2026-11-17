@@ -14,3 +14,6 @@ aggiornamenti/log_aggiornamenti.txt
 aggiornamenti/backup_*/
 # Non aggiungere bozze narrative private al repository pubblico
 *.spoiler-draft
+
+# Archivi portatili generati dal builder Windows
+Ultimo_Rifugio_*_Windows_Portatile.zip

@@ -98,3 +98,12 @@ cat "$work/camera.log"
 if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/camera.log"; then
   exit 1
 fi
+
+echo "== Godot: backup e compatibilita Alfa 14 =="
+if ! "$GODOT" --headless --path . --script tests/release14_saves.gd >"$work/release14.log" 2>&1; then
+  cat "$work/release14.log"; exit 1
+fi
+cat "$work/release14.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/release14.log"; then
+  exit 1
+fi

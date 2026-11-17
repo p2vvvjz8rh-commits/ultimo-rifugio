@@ -1,5 +1,5 @@
 param([switch]$Avvia)
-# Ultimo Rifugio Alfa 08 - build portatile Windows, correzione 1.
+# Ultimo Rifugio Alfa 14 - build portatile Windows, correzione 1.
 # Esegui tramite AVVIA_O_CREA_GIOCO.bat dalla cartella del progetto.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -23,7 +23,7 @@ $TestOut = Join-Path $Build 'test_stdout.txt'
 $TestErr = Join-Path $Build 'test_stderr.txt'
 $ExportOut = Join-Path $Build 'export_stdout.txt'
 $ExportErr = Join-Path $Build 'export_stderr.txt'
-'ULTIMO RIFUGIO - Alfa 08 - diagnosi build corretta' | Set-Content $Log -Encoding UTF8
+'ULTIMO RIFUGIO - Alfa 14 - diagnosi build corretta' | Set-Content $Log -Encoding UTF8
 ('Data: ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) | Add-Content $Log -Encoding UTF8
 ('Progetto: ' + $Project) | Add-Content $Log -Encoding UTF8
 
@@ -82,7 +82,14 @@ try {
     # Le virgolette sul percorso sono fondamentali se la cartella Windows contiene spazi.
     $QuotedProject = '"' + $Project + '"'
     Run-Godot $ConsoleExe 'IMPORTAZIONE' ('--headless --path ' + $QuotedProject + ' --editor --import') $ImportOut $ImportErr
-    Run-Godot $ConsoleExe 'CONTROLLO SCENA' ('--headless --path ' + $QuotedProject + ' --quit-after 3') $TestOut $TestErr
+    # Un avvio di prova non deve leggere/salvare la partita del giocatore.
+    $PreviousTestData = $env:ULTIMO_RIFUGIO_TEST_DATA
+    try {
+        $env:ULTIMO_RIFUGIO_TEST_DATA = Join-Path $ToolsCache ('verifica_' + [guid]::NewGuid().ToString('N'))
+        Run-Godot $ConsoleExe 'CONTROLLO SCENA' ('--headless --path ' + $QuotedProject + ' --quit-after 3') $TestOut $TestErr
+    } finally {
+        $env:ULTIMO_RIFUGIO_TEST_DATA = $PreviousTestData
+    }
 
     # Scarica i template SOLO dopo che l'importazione e il controllo sono riusciti.
     $TemplateExe = Join-Path $TemplateDestination 'windows_release_x86_64.exe'
@@ -104,15 +111,21 @@ try {
     Run-Godot $ConsoleExe 'ESPORTAZIONE' $ExportArgs $ExportOut $ExportErr
     if (-not (Test-Path $GameExe)) { throw 'Godot non ha creato build\UltimoRifugio.exe.' }
     if ((Get-Item $GameExe).Length -lt 1000000) { throw 'EXE Windows troppo piccolo: esportazione non valida.' }
-    New-Item -ItemType Directory -Force -Path (Join-Path $Build 'salvataggi') | Out-Null
     Copy-Item -Path (Join-Path $Project 'docs\LICENSE_QUATERNIUS.txt') -Destination $Build -Force
-    $PortableZip = Join-Path $Project 'Ultimo_Rifugio_Alfa08_Windows_Portatile.zip'
+    $PortableZip = Join-Path $Project 'Ultimo_Rifugio_Alfa14_Windows_Portatile.zip'
     if (Test-Path $PortableZip) { Remove-Item $PortableZip -Force }
-    # Zip giocabile senza file diagnostici.
-    $ToPackage = @($GameExe, (Join-Path $Build 'salvataggi'), (Join-Path $Build 'LICENSE_QUATERNIUS.txt'))
+    # Lo ZIP contiene solo binari e metadati, mai la partita locale del giocatore.
+    $PortableStage = Join-Path $ToolsCache ('pacchetto_' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force $PortableStage | Out-Null
+    Copy-Item -LiteralPath $GameExe -Destination $PortableStage
     $Pck = Join-Path $Build 'UltimoRifugio.pck'
-    if (Test-Path $Pck) { $ToPackage += $Pck }
+    if (Test-Path $Pck) { Copy-Item -LiteralPath $Pck -Destination $PortableStage }
+    Copy-Item -LiteralPath (Join-Path $Build 'LICENSE_QUATERNIUS.txt') -Destination $PortableStage
+    Copy-Item -LiteralPath (Join-Path $Project 'VERSIONE.txt') -Destination $PortableStage
+    'Alfa 14 portatile: conservare questo file accanto al gioco.' | Set-Content (Join-Path $PortableStage 'PORTATILE.txt') -Encoding UTF8
+    $ToPackage = @(Get-ChildItem -LiteralPath $PortableStage -File | ForEach-Object { $_.FullName })
     Compress-Archive -Path $ToPackage -DestinationPath $PortableZip -CompressionLevel Optimal
+    Remove-Item -LiteralPath $PortableStage -Recurse -Force
     Report ('SUCCESSO: ' + $GameExe)
     Report ('ZIP portatile: ' + $PortableZip)
     if ($Avvia) { Start-Process -FilePath $GameExe -WorkingDirectory $Build }

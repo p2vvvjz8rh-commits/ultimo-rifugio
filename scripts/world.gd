@@ -83,6 +83,7 @@ var repair_bench_label: Label3D
 var bench_hint_time: float = 0.0
 var new_game_dialog: ConfirmationDialog
 var skip_save_on_exit: bool = false
+var save_backup_ready: bool = true
 var supply_caches: Array[Dictionary] = []
 var collected_supplies: int = 0
 var supply_goal: int = 4
@@ -119,13 +120,16 @@ func _ready() -> void:
     _create_camera()
     _create_hud()
     DisplayServer.window_set_title("Ultimo Rifugio · " + _candidate_identity())
+    print("Ultimo Rifugio · " + _candidate_identity())
     _load_progress()
     _spawn_initial_enemies()
     _spawn_supply_cache()
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("CANDIDATA: clic destro per ispezionare; F per recuperare materiali a OVEST. ", 6.0)
+    show_message("ALFA 14: clic destro per ispezionare; F per recuperare materiali a OVEST.",6.0)
+    if not save_backup_ready:
+        show_message("Backup della partita non riuscito: salvataggio sospeso per proteggere i dati.",30.0)
 
 func _process(delta: float) -> void:
     if camera_dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
@@ -1611,11 +1615,16 @@ func _update_supply_caches(delta: float) -> void:
         next_cache_spawn = elapsed + 26.0
 
 func _save_directory() -> String:
+    # Il builder controlla la scena in dati temporanei, mai nella partita reale.
+    var test_directory: String = OS.get_environment("ULTIMO_RIFUGIO_TEST_DATA")
+    if OS.has_feature("editor") and not test_directory.is_empty():
+        return test_directory.path_join("salvataggi") if test_directory.is_absolute_path() else ""
     var executable_directory: String = OS.get_executable_path().get_base_dir()
     # Il pacchetto di collaudo resta separato dai dati di Alfa 13 anche avviando
     # direttamente l'EXE. Fuori dalla candidata si conserva il percorso storico.
     var portable_candidate: bool = not OS.has_feature("editor") and FileAccess.file_exists(executable_directory.path_join("CANDIDATA_PORTATILE.txt"))
-    if OS.has_feature("standalone") or portable_candidate:
+    var portable_release: bool = not OS.has_feature("editor") and FileAccess.file_exists(executable_directory.path_join("PORTATILE.txt"))
+    if OS.has_feature("standalone") or portable_candidate or portable_release:
         return executable_directory.path_join("salvataggi")
     return ProjectSettings.globalize_path("user://salvataggi")
 
@@ -1628,9 +1637,11 @@ func _wall_hp_for_save() -> Array:
 func _save_progress() -> void:
     # Durante la chiusura della scena il protagonista puo' essere gia' stato liberato.
     # Mai creare/troncare partita.json prima di sapere che i dati sono leggibili.
-    if not is_instance_valid(hero):
+    if not is_instance_valid(hero) or not save_backup_ready:
         return
     var directory := _save_directory()
+    if directory.is_empty():
+        return
     var result := DirAccess.make_dir_recursive_absolute(directory)
     if result != OK:
         return
@@ -1640,7 +1651,7 @@ func _save_progress() -> void:
         return
     var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
     var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
-    var data := {"salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
+    var data := {"game_release":"alfa14","salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1655,6 +1666,9 @@ func _load_progress() -> void:
     file.close()
     if typeof(parsed) != TYPE_DICTIONARY or int(parsed.get("version",0)) != 8:
         return
+    save_backup_ready = true
+    if parsed.get("game_release","") != "alfa14":
+        save_backup_ready = _backup_before_alpha14(path)
     salvage.load_data(parsed.get("salvage",{}))
     collected_supplies = int(parsed.get("collected_supplies",0))
     supply_goal = int(parsed.get("supply_goal",4))
@@ -1821,14 +1835,30 @@ func _occlusion_opacity(mesh: MeshInstance3D) -> float:
     return .65 if mesh.get_meta("damaged_structure",false) else .24
 
 func _candidate_identity() -> String:
+    var release: String = "ALFA 14"
     if OS.has_feature("editor"):
-        return "SVILUPPO"
-    var path: String = OS.get_executable_path().get_base_dir().path_join("COMMIT.txt")
-    if FileAccess.file_exists(path):
-        var revision: String = FileAccess.get_file_as_string(path).strip_edges()
-        if revision.length() == 40 and revision.is_valid_hex_number():
-            return "CANDIDATA " + revision.left(7)
-    return "CANDIDATA"
+        return release + " · SVILUPPO"
+    var directory: String = OS.get_executable_path().get_base_dir()
+    if FileAccess.file_exists(directory.path_join("CANDIDATA_PORTATILE.txt")):
+        var path: String = directory.path_join("COMMIT.txt")
+        if FileAccess.file_exists(path):
+            var revision: String = FileAccess.get_file_as_string(path).strip_edges()
+            if revision.length() == 40 and revision.is_valid_hex_number():
+                return "CANDIDATA " + revision.left(7)
+        return "CANDIDATA"
+    return release
+
+func _backup_before_alpha14(path: String) -> bool:
+    var backup: String = path.get_base_dir().path_join("partita_pre_alfa14.json")
+    if FileAccess.file_exists(backup):
+        backup = path.get_base_dir().path_join("partita_pre_alfa14_%d_%d.json" % [int(Time.get_unix_time_from_system()),Time.get_ticks_usec()])
+    if DirAccess.dir_exists_absolute(backup):
+        push_warning("Destinazione del backup non valida: la partita originale resta protetta.")
+        return false
+    if DirAccess.copy_absolute(path,backup) != OK:
+        push_warning("Backup pre Alfa 14 non riuscito: la partita originale non verra' sovrascritta.")
+        return false
+    return FileAccess.get_file_as_bytes(path) == FileAccess.get_file_as_bytes(backup)
 
 func _end_camera_drag() -> void:
     camera_dragging = false

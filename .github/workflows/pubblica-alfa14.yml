@@ -1,0 +1,88 @@
+name: Alfa 14 - verifica distribuzione e pubblicazione
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    tags: [alfa-14]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verifica-progetto:
+    uses: ./.github/workflows/godot-headless.yml
+  prepara-distribuzione:
+    needs: verifica-progetto
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-candidata-Windows-${{ github.event.pull_request.head.sha || github.sha }}
+          path: build/alfa14
+      - run: python3 tools/PREPARA_ALFA14.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UltimoRifugio-Alfa14-Windows
+          path: build/alfa14/
+          retention-days: 90
+          if-no-files-found: error
+  verifica-windows-stabile:
+    needs: prepara-distribuzione
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-Alfa14-Windows
+          path: build/alfa14
+      - name: Verifica release, progressi e backup reali su Windows effimero
+        shell: pwsh
+        run: ./tools/VERIFICA_RELEASE_WINDOWS.ps1 -Package ./build/alfa14
+  pubblica:
+    if: github.event_name == 'push' && github.ref == 'refs/tags/alfa-14'
+    needs: verifica-windows-stabile
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: UltimoRifugio-Alfa14-Windows
+          path: build/alfa14
+      - name: Crea e controlla lo ZIP ufficiale
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          folder = Path('build/alfa14')
+          archive = Path('Ultimo_Rifugio_Alfa14_Windows_Portatile.zip')
+          with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+              for file in sorted(folder.iterdir()):
+                  assert file.is_file(), 'Nessun salvataggio locale ammesso nel pacchetto'
+                  bundle.write(file, file.name)
+          with zipfile.ZipFile(archive) as bundle:
+              assert bundle.testzip() is None
+              assert 'PORTATILE.txt' in bundle.namelist()
+          PY
+      - name: Pubblica Alfa 14 dopo tutti i controlli
+        run: |
+          set -Eeuo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/alfa-14" --jq .object.sha)" = "$GITHUB_SHA"
+          if gh release view alfa-14 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Alfa 14 gia pubblicata: nessun file sovrascritto.'
+            exit 0
+          fi
+          gh release create alfa-14 Ultimo_Rifugio_Alfa14_Windows_Portatile.zip \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --latest=true \
+            --title 'Ultimo Rifugio - Alfa 14' --notes-file docs/ALFA14.txt
