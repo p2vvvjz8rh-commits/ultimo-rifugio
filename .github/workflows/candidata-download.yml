@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: e4c25fa50853d313b8e7abcab3a67e381a830038
-      CANDIDATE_TAG: candidata-orbita-e4c25fa
-      VERIFIED_RUN: '43928443335'
+      CANDIDATE_SHA: 9b77f62f137a4432f21c4c81d3d5301a19ebd9c6
+      CANDIDATE_TAG: candidata-alfa15-9b77f62
+      VERIFIED_RUN: '44140024752'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-e4c25fa50853d313b8e7abcab3a67e381a830038
-          run-id: 43928443335
+          name: UltimoRifugio-candidata-Windows-9b77f62f137a4432f21c4c81d3d5301a19ebd9c6
+          run-id: 44140024752
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-candidata-orbita-e4c25fa.zip')
+          archive = pathlib.Path('UltimoRifugio-Alfa15-candidata-9b77f62.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -63,23 +63,26 @@ jobs:
           fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
-          Pacchetto separato per il collaudo della camera orbitale a 360 gradi.
+          Alfa 15 candidata: scorta di materiali e ampliamento del cortile.
 
-          Scarica lo ZIP, estrai tutti i file in una NUOVA cartella e apri AVVIA_CANDIDATA.bat.
-          Prova il movimento contro i muri, i danni visti dal cortile e la resistenza della capanna.
-          Tieni premuta la rotella e trascina: orizzontale ruota a 360 gradi attorno al protagonista, verticale inclina.
-          Home ripristina la visuale iniziale; la rotella libera mantiene lo zoom.
-          WASD segue la camera ruotata, mentre il clic di movimento resta coerente col punto indicato.
-          Orbita e zoom sono disponibili anche in pausa; nessuna traslazione laterale.
+          Scarica lo ZIP, estrai tutto in una NUOVA cartella e avvia AVVIA_CANDIDATA.bat.
+          Alfa 14 rimane la versione stabile: nessun aggiornamento automatico e nessun merge in main.
+          Conserva CANDIDATA_PORTATILE.txt per isolare i dati del collaudo.
 
-          Stessi file della candidata e4c25fa gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
-          Capanna: danni ricevuti ridotti del 65%, HP massimi e salvataggi v8 invariati.
-          Conservate le meccaniche precedentemente collaudate di cancello, riparazioni e recupero.
-          Conservare CANDIDATA_PORTATILE.txt per mantenere separati i dati del collaudo.
+          Prova breve: costruisci la palizzata, raggiungi il carretto a SUD-EST e premi F.
+          Resta vicino al carico e proteggilo fino alla consegna davanti al cancello.
+          Verifica anche il nuovo tentativo dopo una perdita e la ripresa dopo chiusura del gioco.
+          Il primo recupero sblocca l'ampliamento al banco (E), al costo di 120 legno e 60 monete.
+          Dopo l'ampliamento prova accesso al cancello, riparazioni e riapertura della partita.
+          F3 offre risorse e comandi di prova per abbreviare il collaudo.
 
-          Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
+          Controlli automatici Godot 4.7.2: suite Linux, compatibilita JSON v8,
+          backup protettivi, esportazione e avvio/salvataggio/riapertura Windows headless.
+          Rendering della base ampliata controllato su Linux; resa e ritmo su Windows da collaudare.
+          I salvataggi precedenti restano compatibili, con backup pre Alfa 15 prima dei nuovi campi.
+          Nessuna modifica narrativa in questa candidata.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-orbita-e4c25fa.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-Alfa15-candidata-9b77f62.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Candidata orbita 360 gradi e4c25fa — solo collaudo' \
+            --prerelease --latest=false --title 'Alfa 15 candidata 9b77f62 — scorta e ampliamento' \
             --notes-file note-candidata.txt
