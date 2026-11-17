@@ -78,7 +78,7 @@ jobs:
               $save = Join-Path $folder 'salvataggi/partita.json'
               if (-not (Test-Path $save)) { throw 'Salvataggio portatile Windows mancante' }
               $data = Get-Content $save -Raw | ConvertFrom-Json
-              if ($data.version -ne 8 -or $null -eq $data.salvage -or $null -eq $data.wall_hp) { throw 'Salvataggio Windows incompleto' }
+              if ($data.version -ne 8 -or $null -eq $data.salvage -or $null -eq $data.wall_hp -or $null -eq $data.expedition -or $data.development_cycle -ne 15 -or $data.base_level -ne 1) { throw 'Salvataggio Windows incompleto' }
             }
           } finally { Pop-Location }
           Write-Host 'OK: candidata Windows avviata e riaperta con salvataggio v8. Rendering interattivo da collaudare.'

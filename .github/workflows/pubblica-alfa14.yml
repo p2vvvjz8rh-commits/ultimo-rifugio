@@ -1,8 +1,6 @@
 name: Alfa 14 - verifica distribuzione e pubblicazione
 
 on:
-  pull_request:
-    branches: [main]
   push:
     tags: [alfa-14]
 

@@ -103,6 +103,10 @@ var test_panel_visible: bool = false
 var test_stats: Label
 var radio_station
 var salvage
+var expedition
+var base_level: int = 1
+const EXPANSION_WOOD := 120
+const EXPANSION_COINS := 60
 
 func _ready() -> void:
     rng.seed = 20261114
@@ -117,6 +121,9 @@ func _ready() -> void:
     salvage = preload("res://scripts/salvage_activity.gd").new()
     add_child(salvage)
     salvage.configure(self)
+    expedition = preload("res://scripts/supply_escort.gd").new()
+    add_child(expedition)
+    expedition.configure(self)
     _create_camera()
     _create_hud()
     DisplayServer.window_set_title("Ultimo Rifugio · " + _candidate_identity())
@@ -127,7 +134,7 @@ func _ready() -> void:
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("ALFA 14: clic destro per ispezionare; F per recuperare materiali a OVEST.",6.0)
+    show_message("ALFA 15: recuperi a OVEST; carretto da scortare a SUD-EST (F).",6.0)
     if not save_backup_ready:
         show_message("Backup della partita non riuscito: salvataggio sospeso per proteggere i dati.",30.0)
 
@@ -205,7 +212,7 @@ func _input(event: InputEvent) -> void:
             KEY_F3:
                 _toggle_test_panel()
             KEY_F:
-                if not paused: salvage.interact()
+                if not paused and not expedition.interact(): salvage.interact()
             KEY_R:
                 if not paused and is_instance_valid(radio_station):
                     radio_station.activate()
@@ -455,14 +462,14 @@ func _decorate_world() -> void:
 
 func _create_forest() -> void:
     # Alberi ravvicinati rigenerabili per testare la raccolta; altri intorno alla radura.
-    var near_positions := [Vector2(-7.0, 3.6), Vector2(-8.2, 7.2), Vector2(7.4, 5.3), Vector2(9.0, .9), Vector2(-7.8, -5.9), Vector2(8.0, -7.6)]
+    var near_positions := [Vector2(-9.0, 3.6), Vector2(-9.2, 8.2), Vector2(9.4, 5.3), Vector2(9.0, .9), Vector2(-9.8, -5.9), Vector2(9.6, -7.6)]
     for p in near_positions:
         _create_tree(p.x, p.y, rng.randf_range(.88, 1.12), true)
     for i in range(70):
         var pos := Vector2(rng.randf_range(-20.0, 20.0), rng.randf_range(-20.0, 20.0))
-        if absf(pos.x) < 6.6 and pos.y > -9.0 and pos.y < 7.8:
+        if absf(pos.x) < 8.4 and pos.y > -11.4 and pos.y < 8.3:
             continue
-        if _near_salvage_site(pos) or pos.distance_to(Vector2(13.0,-10.0)) < 4.6:
+        if _near_salvage_site(pos) or pos.distance_to(Vector2(13.0,-10.0)) < 4.6 or pos.distance_to(Vector2(15,15)) < 3.5:
             continue
         if pos.length() < 10.5 and rng.randf() < .75:
             continue
@@ -918,6 +925,12 @@ func _refresh_repair_menu() -> void:
     all_option.disabled = not _has_damaged_defenses() or wood < REPAIR_COST
     all_option.pressed.connect(_repair_all_at_bench)
     body.add_child(all_option)
+    var expand := Button.new()
+    expand.text = "Amplia cortile | 120 legno + 60 monete" if expedition.blueprint else "Ampliamento: recupera il carretto a SUD-EST"
+    expand.disabled = base_level >= 2 or not expedition.blueprint or wood < EXPANSION_WOOD or coins < EXPANSION_COINS
+    if base_level >= 2: expand.text = "Cortile ampliato"
+    expand.pressed.connect(_expand_base)
+    body.add_child(expand)
     var close := Button.new()
     close.text = "Chiudi"
     close.pressed.connect(func(): repair_popup.hide())
@@ -998,7 +1011,7 @@ func _structure_position(kind: String) -> Vector3:
                     place = section["position"] + Vector3.UP * 1.7
             return place
         "gate":
-            return Vector3(0.0,2.0,4.0)
+            return Vector3(0.0,2.0,gate_front_z())
         "bench":
             return repair_bench.global_position + Vector3.UP * 1.5
     return Vector3(0.0,3.0,-3.6)
@@ -1012,47 +1025,51 @@ func _build_stockade() -> void:
     fence_root = Node3D.new()
     fence_root.name = "Palizzata_automatica"
     add_child(fence_root)
-    var left_x := -5.3
-    var right_x := 5.3
-    var back_z := -7.9
-    var front_z := 4.0
-    for i in range(22):
-        var x := left_x + float(i) * (right_x-left_x) / 21.0
+    var left_x: float = -base_half_width()
+    var right_x: float = base_half_width()
+    var back_z: float = base_back_z()
+    var front_z: float = gate_front_z()
+    var across: int = 21 if base_level == 1 else 28
+    for i in range(across+1):
+        var x := left_x + float(i) * (right_x-left_x) / float(across)
         _post(fence_root, Vector3(x,0,back_z))
         if absf(x) > 1.55:
             _post(fence_root, Vector3(x,0,front_z))
-    for i in range(23):
-        var z := back_z + float(i)*(front_z-back_z)/22.0
+    var along: int = 22 if base_level == 1 else 32
+    for i in range(along+1):
+        var z := back_z + float(i)*(front_z-back_z)/float(along)
         _post(fence_root, Vector3(left_x,0,z))
         _post(fence_root, Vector3(right_x,0,z))
     # Rinforzi suddivisi per sezione: una breccia non lascia travi sospese.
-    _box(fence_root,"Montante_cancello_SX",Vector3(-1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
-    _box(fence_root,"Montante_cancello_DX",Vector3(1.52,1.26,4),Vector3(.32,2.6,.38),"#6c482d")
+    _box(fence_root,"Montante_cancello_SX",Vector3(-1.52,1.26,front_z),Vector3(.32,2.6,.38),"#6c482d")
+    _box(fence_root,"Montante_cancello_DX",Vector3(1.52,1.26,front_z),Vector3(.32,2.6,.38),"#6c482d")
     gate_left = Node3D.new()
     gate_left.name = "Anta_SX"
-    gate_left.position = Vector3(-1.44, 0.0, 4.0)
+    gate_left.position = Vector3(-1.44, 0.0, front_z)
     fence_root.add_child(gate_left)
     _box(gate_left,"Legno_anta",Vector3(.72,1.03,0),Vector3(1.44,2.08,.22),"#997048")
     _box(gate_left,"Rinforzo",Vector3(.72,.75,.15),Vector3(1.44,.16,.12),"#533b29")
     gate_right = Node3D.new()
     gate_right.name = "Anta_DX"
-    gate_right.position = Vector3(1.44, 0.0, 4.0)
+    gate_right.position = Vector3(1.44, 0.0, front_z)
     fence_root.add_child(gate_right)
     _box(gate_right,"Legno_anta",Vector3(-.72,1.03,0),Vector3(1.44,2.08,.22),"#997048")
     _box(gate_right,"Rinforzo",Vector3(-.72,.75,.15),Vector3(1.44,.16,.12),"#533b29")
-    for x in [-5.3, 5.3]:
+    for x in [left_x, right_x]:
         for z in [back_z, front_z]:
             _cone(fence_root,"Palo_angolare",Vector3(x,1.75,z),.37,3.5,"#7f5838",.17)
     # Ogni tratto ha collisione e HP indipendenti (nessun HP condiviso col rifugio).
     for i in range(3):
-        var x_center: float = -3.55 + float(i) * 3.55
-        _wall_collision("Parete_nord_%d" % (i+1),Vector3(x_center,1.12,back_z),Vector3(3.55,2.24,.50))
+        var width: float = (right_x-left_x)/3.0
+        var x_center: float = left_x+width*(float(i)+.5)
+        _wall_collision("Parete_nord_%d" % (i+1),Vector3(x_center,1.12,back_z),Vector3(width,2.24,.50))
     for i in range(2):
-        var z_center: float = -4.925 + float(i) * 5.95
-        _wall_collision("Parete_ovest_%d" % (i+1),Vector3(left_x,1.12,z_center),Vector3(.50,2.24,5.95))
-        _wall_collision("Parete_est_%d" % (i+1),Vector3(right_x,1.12,z_center),Vector3(.50,2.24,5.95))
-    _wall_collision("Parete_frontale_sinistra", Vector3(-3.4,1.12,front_z), Vector3(3.8,2.24,.50))
-    _wall_collision("Parete_frontale_destra", Vector3(3.4,1.12,front_z), Vector3(3.8,2.24,.50))
+        var depth: float = (front_z-back_z)/2.0
+        var z_center: float = back_z+depth*(float(i)+.5)
+        _wall_collision("Parete_ovest_%d" % (i+1),Vector3(left_x,1.12,z_center),Vector3(.50,2.24,depth))
+        _wall_collision("Parete_est_%d" % (i+1),Vector3(right_x,1.12,z_center),Vector3(.50,2.24,depth))
+    _wall_collision("Parete_frontale_sinistra", Vector3(-(right_x+1.5)/2.0,1.12,front_z), Vector3(right_x-1.5,2.24,.50))
+    _wall_collision("Parete_frontale_destra", Vector3((right_x+1.5)/2.0,1.12,front_z), Vector3(right_x-1.5,2.24,.50))
     # Anche le ante hanno collider, legati allo stesso nodo che ruota.
     var barrier_body := StaticBody3D.new()
     barrier_body.collision_layer = 4 # Blocco fisso riservato agli zombie.
@@ -1062,13 +1079,13 @@ func _build_stockade() -> void:
     var barrier_shape := BoxShape3D.new()
     barrier_shape.size = Vector3(2.88,2.6,.3)
     gate_barrier.shape = barrier_shape
-    gate_barrier.position = Vector3(0,1.3,4)
+    gate_barrier.position = Vector3(0,1.3,front_z)
     barrier_body.add_child(gate_barrier)
     gate_left_collision = _gate_collision(gate_left, "Collider_anta_sinistra", Vector3(.72,1.03,0.0))
     gate_right_collision = _gate_collision(gate_right, "Collider_anta_destra", Vector3(-.72,1.03,0.0))
-    gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,4.0))
+    gate_indicator = _create_defense_indicator(fence_root,Vector3(0.0,3.0,front_z))
     _sync_gate_collision(false)
-    gate_visual = _make_structure_visual(fence_root,"gate",GATE_HP_MAX,Vector3(0.0,3.0,4.0))
+    gate_visual = _make_structure_visual(fence_root,"gate",GATE_HP_MAX,Vector3(0.0,3.0,front_z))
     gate_visual.bind_meshes(gate_left.get_children() + gate_right.get_children())
     _create_repair_bench()
     _register_occluders(fence_root)
@@ -1158,10 +1175,10 @@ func _nearest_wall_section(from_position: Vector3) -> int:
 func defense_target(from_position: Vector3) -> Vector3:
     if not stockade_built:
         return Vector3(0.0,0.0,-3.6)
-    if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
+    if _inside_stockade(from_position):
         return Vector3(0.0,0.0,-3.6)
-    if from_position.z > 3.45 and absf(from_position.x) < 1.35:
-        return Vector3(0.0,0.0,5.05) if not gate_broken else Vector3(0.0,0.0,2.5)
+    if from_position.z > gate_front_z()-.55 and absf(from_position.x) < 1.35:
+        return Vector3(0.0,0.0,gate_front_z()+1.05) if not gate_broken else Vector3(0.0,0.0,gate_front_z()-1.5)
     # Una breccia permette il passaggio, ma solo in quel tratto.
     var breach_distance: float = 7.0
     var breach_target: Vector3 = Vector3.ZERO
@@ -1174,9 +1191,9 @@ func defense_target(from_position: Vector3) -> Vector3:
         if dist < breach_distance:
             breach_distance = dist
             breach_target = breach
-            if absf(breach.x) > 4.8:
+            if absf(breach.x) > base_half_width()-.5:
                 breach_target.x += -1.4 if breach.x > 0.0 else 1.4
-            elif breach.z > 2.0:
+            elif breach.z > gate_front_z()-2.0:
                 breach_target.z -= 1.4
             else:
                 breach_target.z += 1.4
@@ -1200,7 +1217,7 @@ func defense_target(from_position: Vector3) -> Vector3:
     return attack_point
 
 func attack_defense_at(from_position: Vector3, damage: float) -> void:
-    if absf(from_position.x) < 4.75 and from_position.z > -7.45 and from_position.z < 3.45:
+    if _inside_stockade(from_position):
         if is_instance_valid(repair_bench) and from_position.distance_to(repair_bench.global_position) < 2.2 and bench_hp > 0.0:
             bench_hp = maxf(0.0,bench_hp-damage*.36)
             if bench_hp <= 0.0:
@@ -1209,7 +1226,7 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
         else:
             damage_base(damage)
         return
-    if from_position.z > 4.0 and absf(from_position.x) < 1.35 and not gate_broken:
+    if from_position.z > gate_front_z() and absf(from_position.x) < 1.35 and not gate_broken:
         gate_hp = maxf(0.0,gate_hp-damage * .36)
         if gate_hp <= 0.0:
             gate_broken = true
@@ -1268,10 +1285,10 @@ func wall_assault_target(from_position: Vector3) -> Vector3:
     if not stockade_built or gate_broken:
         return Vector3(0.0,0.0,3.8)
     var candidate_points: Array[Vector3] = [
-        Vector3(-5.3,0.0,clampf(from_position.z,-7.9,4.0)),
-        Vector3(5.3,0.0,clampf(from_position.z,-7.9,4.0)),
-        Vector3(clampf(from_position.x,-5.3,5.3),0.0,-7.9),
-        Vector3(clampf(from_position.x,-5.3,5.3),0.0,4.0)
+        Vector3(-base_half_width(),0.0,clampf(from_position.z,base_back_z(),gate_front_z())),
+        Vector3(base_half_width(),0.0,clampf(from_position.z,base_back_z(),gate_front_z())),
+        Vector3(clampf(from_position.x,-base_half_width(),base_half_width()),0.0,base_back_z()),
+        Vector3(clampf(from_position.x,-base_half_width(),base_half_width()),0.0,gate_front_z())
     ]
     var nearest: Vector3 = candidate_points[0]
     var shortest: float = INF
@@ -1290,7 +1307,7 @@ func _post(parent: Node3D, pos: Vector3) -> void:
 func _update_gate(delta: float) -> void:
     if not stockade_built or gate_left == null or gate_right == null:
         return
-    var open_target := 1.0 if hero.global_position.distance_to(Vector3(0,0,4.1)) < 4.6 else 0.0
+    var open_target := 1.0 if hero.global_position.distance_to(Vector3(0,0,gate_front_z()+.1)) < 4.6 else 0.0
     current_gate_open = move_toward(current_gate_open,open_target,delta*1.65)
     gate_left.rotation.y = current_gate_open * -1.35
     gate_right.rotation.y = current_gate_open * 1.35
@@ -1448,6 +1465,7 @@ func _update_hud() -> void:
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
     objective_hud.text = "SCORTE %d/%d  |  ORDA %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
+    objective_hud.text += "\n" + expedition.objective_text()
     if salvage.carried > 0:
         objective_hud.text += " | CARICO %d/3 - TORNA ALLA BASE" % salvage.carried
     if is_instance_valid(radio_station) and radio_station.active:
@@ -1651,7 +1669,7 @@ func _save_progress() -> void:
         return
     var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
     var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
-    var data := {"game_release":"alfa14","salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
+    var data := {"game_release":"alfa14","development_cycle":15,"base_level":base_level,"expedition":expedition.save_data(),"salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1669,6 +1687,10 @@ func _load_progress() -> void:
     save_backup_ready = true
     if parsed.get("game_release","") != "alfa14":
         save_backup_ready = _backup_before_alpha14(path)
+    if save_backup_ready and int(parsed.get("development_cycle",14)) < 15:
+        save_backup_ready = _backup_before_cycle15(path)
+    base_level = clampi(int(parsed.get("base_level",1)),1,2)
+    expedition.load_data(parsed.get("expedition",{}))
     salvage.load_data(parsed.get("salvage",{}))
     collected_supplies = int(parsed.get("collected_supplies",0))
     supply_goal = int(parsed.get("supply_goal",4))
@@ -1730,7 +1752,7 @@ func _manual_position(kind: String) -> Vector3:
     if kind.begins_with("wall:"):
         return wall_segments[int(kind.get_slice(":",1))]["position"]
     if kind == "gate":
-        return Vector3(0,0,4)
+        return Vector3(0,0,gate_front_z())
     if kind == "bench":
         return repair_bench.global_position
     return Vector3(0,0,-3.6)
@@ -1744,7 +1766,7 @@ func _inspect_structure(cursor: Vector2) -> void:
     ]
     if stockade_built:
         candidates.append({"kind":"gate","title":"Cancello","hp":gate_hp,"max":GATE_HP_MAX,
-            "center":Vector3(0,1.1,4),"size":Vector3(2.9,2.2,.6)})
+            "center":Vector3(0,1.1,gate_front_z()),"size":Vector3(2.9,2.2,.6)})
         candidates.append({"kind":"bench","title":"Banco","hp":bench_hp,"max":BENCH_HP_MAX,
             "center":repair_bench.global_position+Vector3.UP*.7,"size":Vector3(1.8,1.4,.92)})
         for i in range(wall_segments.size()):
@@ -1790,6 +1812,12 @@ func _inspect_structure(cursor: Vector2) -> void:
     button.disabled = not near or wood < cost or health >= maximum
     button.pressed.connect(func(): _repair_selected(kind))
     body.add_child(button)
+    var expand := Button.new()
+    expand.text = "Amplia cortile | 120 legno + 60 monete" if expedition.blueprint else "Ampliamento: recupera il carretto a SUD-EST"
+    expand.disabled = base_level >= 2 or not expedition.blueprint or wood < EXPANSION_WOOD or coins < EXPANSION_COINS
+    if base_level >= 2: expand.text = "Cortile ampliato"
+    expand.pressed.connect(_expand_base)
+    body.add_child(expand)
     var close := Button.new()
     close.text = "Chiudi"
     close.pressed.connect(func(): repair_popup.hide())
@@ -1835,7 +1863,7 @@ func _occlusion_opacity(mesh: MeshInstance3D) -> float:
     return .65 if mesh.get_meta("damaged_structure",false) else .24
 
 func _candidate_identity() -> String:
-    var release: String = "ALFA 14"
+    var release: String = "ALFA 15"
     if OS.has_feature("editor"):
         return release + " · SVILUPPO"
     var directory: String = OS.get_executable_path().get_base_dir()
@@ -1868,3 +1896,46 @@ func _end_camera_drag() -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
         _end_camera_drag()
+
+# Le coordinate del recinto dipendono solo dal livello salvato; la base originale
+# mantiene gli stessi punti di accesso e lo stesso ordine delle nove sezioni.
+func base_half_width() -> float:
+    return 7.0 if base_level == 2 else 5.3
+
+func base_back_z() -> float:
+    return -10.0 if base_level == 2 else -7.9
+
+func gate_front_z() -> float:
+    return 6.5 if base_level == 2 else 4.0
+
+func _inside_stockade(point: Vector3) -> bool:
+    return absf(point.x) < base_half_width()-.55 and point.z > base_back_z()+.45 and point.z < gate_front_z()-.55
+
+func _expand_base() -> void:
+    if paused or not stockade_built or base_level != 1 or not expedition.blueprint:
+        return
+    if bench_hp <= 0.0 or hero.global_position.distance_to(repair_bench.global_position) > 4.4:
+        return
+    if wood < EXPANSION_WOOD or coins < EXPANSION_COINS:
+        return
+    var previous_hp: Array = _wall_hp_for_save()
+    wood -= EXPANSION_WOOD
+    coins -= EXPANSION_COINS
+    base_level = 2
+    current_gate_open = 0.0
+    _build_stockade()
+    for i in range(wall_segments.size()):
+        wall_segments[i]["hp"] = previous_hp[i]
+    _sync_structure_visuals()
+    repair_popup.hide()
+    show_message("CORTILE AMPLIATO! Cancello spostato verso SUD; danni e riparazioni conservati.",5.0)
+    _save_progress()
+
+func _backup_before_cycle15(path: String) -> bool:
+    var backup: String = path.get_base_dir().path_join("partita_pre_alfa15.json")
+    if FileAccess.file_exists(backup):
+        backup = path.get_base_dir().path_join("partita_pre_alfa15_%d_%d.json" % [int(Time.get_unix_time_from_system()),Time.get_ticks_usec()])
+    if DirAccess.dir_exists_absolute(backup) or DirAccess.copy_absolute(path,backup) != OK:
+        push_warning("Backup pre Alfa 15 non riuscito: partita originale protetta, salvataggio sospeso.")
+        return false
+    return FileAccess.get_file_as_bytes(path) == FileAccess.get_file_as_bytes(backup)

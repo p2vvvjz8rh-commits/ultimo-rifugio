@@ -39,18 +39,20 @@ assert exe[:2] == b'MZ', 'Eseguibile Windows assente'
 pe = struct.unpack_from('<I', exe, 0x3c)[0]
 assert exe[pe:pe+4] == b'PE\0\0' and struct.unpack_from('<H', exe, pe+4)[0] == 0x8664
 assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
-(folder/'CANDIDATA_PORTATILE.txt').write_text('Dati di collaudo separati da Alfa 13. Conservare questo file accanto al gioco.\n',encoding='utf-8')
+(folder/'CANDIDATA_PORTATILE.txt').write_text('Dati di collaudo separati dalla versione stabile. Conservare questo file accanto al gioco.\n',encoding='utf-8')
 (folder/'AVVIA_CANDIDATA.bat').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\nstart "" "UltimoRifugio.exe"\r\n')
 (folder/'LEGGIMI.txt').write_text(
     'ULTIMO RIFUGIO - CANDIDATA DI COLLAUDO\n'
     'Estrai tutto in una NUOVA cartella e avvia AVVIA_CANDIDATA.bat.\n'
-    'Non sostituire la cartella di Alfa 13. Nessun aggiornamento automatico incluso.\n'
+    'Non sostituire la cartella di Alfa 14. Nessun aggiornamento automatico incluso.\n'
     'La candidata usa salvataggi/ accanto al proprio eseguibile.\n'
     'Non sovrascrivere la tua unica copia di una partita.\n'
     'Controlli: WASD, E banco, B costruisci/ripara, clic destro ispeziona, F recupero.\n'
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
-    'COLLAUDO RICHIESTO: animazione contro muri e scorrimento lungo i lati,\n'
-    'danni della palizzata visti dal cortile, resistenza della capanna.\n'
+    'COLLAUDO: F vicino al carretto a SUD-EST, scorta fino davanti al cancello.\n'
+    'Resta entro 3,8 metri e difendi il carico. Prova perdita e nuovo tentativo.\n'
+    'Poi E al banco: amplia il cortile con 120 legno e 60 monete.\n'
+    'Controlla accesso, riparazioni e riapertura della partita dopo ampliamento.\n'
     'Rotella premuta + trascinamento ruota a 360 gradi e inclina la camera.\n'
     'Home ripristina la visuale iniziale; WASD segue la camera ruotata.\n'
     'Lo scorrimento della rotella mantiene lo zoom, anche in pausa.\n'

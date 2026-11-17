@@ -136,7 +136,7 @@ func _physics_process(delta: float) -> void:
     # Invito morbido verso il centro del cancello quando ci si entra o esce.
     # Non altera il movimento laterale lungo le mura.
     if game.stockade_built and absf(direction.z) > 0.25:
-        if global_position.z > 2.4 and global_position.z < 6.7 and absf(global_position.x) < 3.1:
+        if global_position.z > game.gate_front_z()-1.6 and global_position.z < game.gate_front_z()+2.7 and absf(global_position.x) < 3.1:
             var pull: float = clampf(-global_position.x * 0.9,-1.0,1.0)
             direction.x = lerpf(direction.x,pull,0.72)
             direction = direction.normalized()
@@ -209,10 +209,11 @@ func receive_damage(amount: float) -> void:
     hp = maxf(0.0, hp - amount * DAMAGE_MULTIPLIER)
     _update_health_bar()
     if hp <= 0.0:
+        game.expedition.fail()
         game.salvage.drop_carried()
         hp = 100.0
         _update_health_bar()
-        global_position = Vector3(0, 0.16, 6.7)
+        global_position = Vector3(0, 0.16, game.gate_front_z()+2.7)
         game.coins = maxi(0, int(game.coins * 0.8))
         game.show_message("Sei tornato al rifugio. Hai perso il 20% delle monete.", 3.0)
         game._save_progress()
