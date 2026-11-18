@@ -63,5 +63,5 @@ non usa attese o semplicemente orde piu numerose per prolungarlo.
 Eseguire tools/VERIFICA_LINUX.sh con Godot 4.7.2 e l'esportazione ufficiale.
 Le nuove suite controllano 1840 scansioni fisiche del perimetro, angoli,
 brecce, generazione, avvisi, preventivi e percorso completo di progressione.
-CI esegue anche le due nuove suite sul PCK Windows release, oltre al doppio
+CI esegue anche le due nuove suite sul PCK esportato con motore Windows 4.7.2, oltre al doppio
 avvio con salvataggio. Il rendering e il ritmo Windows richiedono collaudo.

@@ -30,7 +30,7 @@ CICLO DEMO ESTESA ALFA 15
 - Main rimane fermo ad Alfa 14. La PR di sviluppo resta in bozza.
 - Dettagli non narrativi in docs/DEMO_ESTESA.txt.
 - Nuove suite: defense_integrity_and_alerts e frontier_progression.
-  Si eseguono anche sul PCK Windows release usando sorgenti di test esterni,
+  Si eseguono anche sul PCK esportato con motore Windows 4.7.2 usando sorgenti di test esterni,
   in copie temporanee separate; nessun test o salvataggio entra nello ZIP.
 - Conservare partita_pre_demo.json prima dei nuovi campi opzionali.
 - Una sola prerelease coerente dopo i controlli: non sovrascrivere le candidate

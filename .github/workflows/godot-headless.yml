@@ -88,10 +88,21 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: source-tests
-      - name: Difese e percorso demo sul motore Windows release
+      - name: Difese e percorso demo sul PCK esportato e motore Windows 4.7.2
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          $env:APPDATA = Join-Path $env:RUNNER_TEMP 'demo-appdata'
+          $env:LOCALAPPDATA = Join-Path $env:RUNNER_TEMP 'demo-localappdata'
+          New-Item -ItemType Directory -Force $env:APPDATA,$env:LOCALAPPDATA | Out-Null
+          $engineFolder = Join-Path $env:RUNNER_TEMP 'godot-windows-472'
+          $engineZip = Join-Path $env:RUNNER_TEMP 'godot-windows-472.zip'
+          Invoke-WebRequest -Uri 'https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_win64.exe.zip' -OutFile $engineZip
+          Expand-Archive -Path $engineZip -DestinationPath $engineFolder
+          $engine = (Get-ChildItem $engineFolder -Filter 'Godot*_win64.exe' | Select-Object -First 1).FullName
+          if (-not $engine) { throw 'Motore ufficiale Windows 4.7.2 mancante' }
+          # --script e --main-pack non sono disponibili nei template release.
+          # L'EXE release e' gia verificato sopra; qui si usa lo stesso PCK esportato.
           foreach ($suite in @('defense_integrity_and_alerts','frontier_progression')) {
             $isolated = Join-Path $env:RUNNER_TEMP "demo-$suite"
             New-Item -ItemType Directory -Force $isolated | Out-Null
@@ -99,12 +110,16 @@ jobs:
             $script = (Resolve-Path "source-tests/tests/$suite.gd").Path
             $out = Join-Path $env:RUNNER_TEMP "$suite-out.log"
             $err = Join-Path $env:RUNNER_TEMP "$suite-err.log"
-            $exe = Join-Path $isolated 'UltimoRifugio.exe'
-            $process = Start-Process -FilePath $exe -ArgumentList @('--headless','--audio-driver','Dummy','--script',$script) -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
-            $process | Wait-Process -Timeout 180
-            $process.Refresh()
+            $pack = Join-Path $isolated 'UltimoRifugio.pck'
+            $env:ULTIMO_RIFUGIO_TEST_DATA = Join-Path $isolated 'test-data'
+            $process = Start-Process -FilePath $engine -ArgumentList @('--headless','--audio-driver','Dummy','--main-pack',$pack,'--script',$script) -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            if (-not $process.WaitForExit(180000)) {
+              Stop-Process -Id $process.Id -Force
+              Get-Content $out,$err
+              throw "Suite $suite: timeout"
+            }
             Get-Content $out,$err
             if ($process.ExitCode -ne 0) { throw "Suite Windows $suite fallita: $($process.ExitCode)" }
             if (Select-String -Path $out,$err -Pattern 'ERROR:|Parse Error:|FATAL:') { throw "Errori Godot Windows: $suite" }
           }
-          Write-Host 'OK: scansioni difese e progressione completa demo eseguite anche su Windows release.'
+          Write-Host 'OK: scansioni difese e progressione completa demo eseguite anche sul PCK esportato con Godot Windows 4.7.2.'
