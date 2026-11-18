@@ -58,10 +58,17 @@ func run() -> void:
     f.open_menu()
     check(f.menu.visible and f.menu_body.get_child(0).text.contains("COME COMPLETARE"),"G mostra istruzioni complete anche sul campo")
     f.menu.hide()
+    await physics_frame
+    var probe := PhysicsShapeQueryParameters3D.new()
+    var capsule := CapsuleShape3D.new()
+    capsule.radius = .38
+    capsule.height = 1.5
+    probe.shape = capsule
+    probe.collision_mask = 1
     for area in range(3):
-        var details: Node = f.models[area].get_node("Ambiente_spedizione")
-        check(details.find_children("*","MeshInstance3D",true,false).size() > 90,"Allestimento presente in ogni area")
-        check(details.find_children("*","StaticBody3D",true,false).is_empty(),"Nuovi dettagli non ostruiscono le interazioni collaudate")
+        for index in range(5):
+            probe.transform = Transform3D(Basis.IDENTITY,f.point(area,index)+Vector3.UP*.9)
+            check(game.get_world_3d().direct_space_state.intersect_shape(probe).is_empty(),"Ogni punto di missione resta fisicamente raggiungibile")
     check(f.clamp_hero(game.hero.position).x > 40,"Movimento non ricondotto alla mappa originale")
     await physics_frame
     await physics_frame

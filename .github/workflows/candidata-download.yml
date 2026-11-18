@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: adba17f1dd63ba64f853cb14c7b31a9419e3a3ff
-      CANDIDATE_TAG: demo-estesa-adba17f
-      VERIFIED_RUN: '44282845926'
+      CANDIDATE_SHA: 9286fa016c0a299cbaeff8fa274ed4e4c18b93c2
+      CANDIDATE_TAG: demo-missioni-9286fa0
+      VERIFIED_RUN: '44295580850'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-adba17f1dd63ba64f853cb14c7b31a9419e3a3ff
-          run-id: 44282845926
+          name: UltimoRifugio-candidata-Windows-9286fa016c0a299cbaeff8fa274ed4e4c18b93c2
+          run-id: 44295580850
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-DemoEstesa-Windows-adba17f.zip')
+          archive = pathlib.Path('UltimoRifugio-DemoMissioni-Windows-9286fa0.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -56,7 +56,7 @@ jobs:
       - name: Conserva il pacchetto verificato senza scadenze di link temporanei
         uses: actions/upload-artifact@v4
         with:
-          name: DemoEstesa-Windows-adba17f-files
+          name: DemoEstesa-Missioni-9286fa0-files
           path: candidata/*
           retention-days: 90
       - name: Pubblica solo se il tag candidato e gia disponibile
@@ -85,6 +85,8 @@ jobs:
           e costo proporzionale; Ripara tutto coerente; corretti giunti fisici e generazione zombie
           nel cortile ampliato. Carretto, ampliamento, movimento e camera conservati.
 
+          Rifiniture: ambienti allestiti, guida per fasi con segnale dorato e istruzioni G sul campo.
+          Le note si aprono subito alla raccolta con pausa protettiva; nessun testo narrativo nelle note di rilascio.
           Nuovo ciclo integrato: tre spedizioni, recuperi facoltativi e scelte di rischio/carico,
           officina, magazzino e generatore fisici, attrezzi e kit da campo. G alla bacheca; H usa kit.
           Le costruzioni hanno salute, deterioramento geometrico, crollo e riparazioni individuali.
@@ -98,7 +100,7 @@ jobs:
 
           Main e Alfa 14 restano invariati. Prerelease di collaudo, mai sostituire la cartella stabile.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoEstesa-Windows-adba17f.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoMissioni-Windows-9286fa0.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Demo estesa Alfa 15 adba17f — solo collaudo' \
+            --prerelease --latest=false --title 'Demo Alfa 15 missioni rifinite 9286fa0 — solo collaudo' \
             --notes-file note-candidata.txt
