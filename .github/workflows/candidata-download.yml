@@ -1,4 +1,4 @@
-name: Download stabile della candidata verificata
+name: Pacchetto verificato demo estesa e download con tag
 
 on:
   pull_request:
@@ -53,7 +53,13 @@ jobs:
           with zipfile.ZipFile(archive) as bundle:
               assert bundle.testzip() is None
           PY
-      - name: Rendi scaricabile la candidata senza modificare main
+      - name: Conserva il pacchetto verificato senza scadenze di link temporanei
+        uses: actions/upload-artifact@v4
+        with:
+          name: DemoEstesa-Windows-adba17f-files
+          path: candidata/*
+          retention-days: 90
+      - name: Pubblica solo se il tag candidato e gia disponibile
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -62,7 +68,8 @@ jobs:
             exit 0
           fi
           if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" >/dev/null 2>&1; then
-            gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST -f "ref=refs/tags/$CANDIDATE_TAG" -f "sha=$CANDIDATE_SHA"
+            echo 'Tag assente: nessuna release creata. Pacchetto verificato e conservato come artefatto, consegna diretta dello ZIP al tester.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
