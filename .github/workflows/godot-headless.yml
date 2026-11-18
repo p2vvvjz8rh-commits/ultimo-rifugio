@@ -116,7 +116,7 @@ jobs:
             if (-not $process.WaitForExit(180000)) {
               Stop-Process -Id $process.Id -Force
               Get-Content $out,$err
-              throw "Suite $suite: timeout"
+              throw "Suite ${suite}: timeout"
             }
             Get-Content $out,$err
             if ($process.ExitCode -ne 0) { throw "Suite Windows $suite fallita: $($process.ExitCode)" }

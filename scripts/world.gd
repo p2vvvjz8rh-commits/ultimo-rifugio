@@ -1627,6 +1627,8 @@ func _demo_seed_data() -> Dictionary:
     return {"version":8,"game_release":"alfa14","development_cycle":15,"frontier":{},"wood":80,"coins":30,"hp":100,"px":0,"pz":2,"weapon_level":2,"stockade_built":true,"base_level":2,"base_hp":CABIN_HP_MAX,"bench_hp":BENCH_HP_MAX,"gate_hp":GATE_HP_MAX,"wall_hp":[240,240,240,240,240,240,240,240,240],"defense_hp_scale":WALL_HP_MAX,"expedition":{"blueprint":true},"elapsed":0,"next_raid":FIRST_RAID_TIME}
 
 func _prepare_new_game(demo: bool) -> bool:
+    # Il backup comprende anche il progresso successivo all'ultimo autosalvataggio.
+    _save_progress()
     var directory: String = _save_directory()
     if directory.is_empty() or DirAccess.make_dir_recursive_absolute(directory) != OK: return false
     var current: String = directory.path_join("partita.json")
