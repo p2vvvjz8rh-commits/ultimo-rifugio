@@ -178,6 +178,7 @@ func _process(delta: float) -> void:
         _save_progress()
 
 func _input(event: InputEvent) -> void:
+    if is_instance_valid(frontier) and frontier.note_open: return
     if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_MIDDLE:
         if event.pressed and not repair_popup.visible and not new_game_dialog.visible:
             camera_dragging = true
@@ -201,6 +202,12 @@ func _input(event: InputEvent) -> void:
                 camera_pitch = CAMERA_DEFAULT_PITCH
             KEY_ESCAPE:
                 _end_camera_drag()
+                if is_instance_valid(frontier) and frontier.menu.visible:
+                    frontier.menu.hide()
+                    return
+                if repair_popup.visible:
+                    repair_popup.hide()
+                    return
                 paused = not paused
                 show_message("PAUSA" if paused else "Esplorazione ripresa",2.0)
             KEY_Q:

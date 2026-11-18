@@ -30,7 +30,11 @@ var menu: PopupPanel
 var menu_body: VBoxContainer
 var hint: Label3D
 var board: Node3D
-var next_hint := 0.0
+var note_dialog: AcceptDialog
+var note_open := false
+var note_previous_pause := false
+var objective_marker: Node3D
+var objective_label: Label3D
 
 func configure(world) -> void:
     game = world
@@ -57,6 +61,23 @@ func configure(world) -> void:
     scroll.add_child(menu_body)
     hint = _label3(self,Vector3.ZERO,"")
     hint.no_depth_test = true
+    note_dialog = AcceptDialog.new()
+    note_dialog.title = "Appunto raccolto"
+    note_dialog.exclusive = true
+    note_dialog.ok_button_text = "Chiudi e riprendi"
+    note_dialog.get_label().autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+    note_dialog.get_label().custom_minimum_size = Vector2(580,160)
+    note_dialog.get_label().add_theme_font_size_override("font_size",18)
+    note_dialog.confirmed.connect(close_note)
+    note_dialog.canceled.connect(close_note)
+    add_child(note_dialog)
+    objective_marker = Node3D.new()
+    add_child(objective_marker)
+    game._cone(objective_marker,"Indicatore_obiettivo",Vector3(0,.05,0),1.05,.06,"#edc35c",1.05)
+    objective_label = _label3(objective_marker,Vector3(0,2.7,0),"OBIETTIVO [F]")
+    objective_label.modulate = Color("#ffe195")
+    objective_label.no_depth_test = true
+    objective_marker.visible = false
     for area in range(3): _create_area(area)
 
 func _label3(parent: Node3D, at: Vector3, title: String) -> Label3D:
@@ -120,7 +141,7 @@ func _create_area(area: int) -> void:
             game._box(item,"Contenitore",Vector3(0,.5,0),Vector3(1.4,1.0,1.1),"#ad8958")
             game._box(item,"Coperchio",Vector3(0,1.07,0),Vector3(1.5,.12,1.2),"#d1ae72")
             for x in [-.46,.46]: game._box(item,"Fascia",Vector3(x,.55,.02),Vector3(.1,1.14,1.18),"#776849")
-        _label3(item,Vector3(0,1.9,0),(["F: ISPEZIONA", "F: RIPRISTINA", "F: RILEVA"][area]) if index < 2 else ("F: RECUPERO PRINCIPALE" if index == 2 else "F: CARICO FACOLTATIVO"))
+        _label3(item,Vector3(0,1.9,0),("%d: %s [F]" % [index+1,["ISPEZIONA", "RIPRISTINA", "RILEVA"][area]]) if index < 2 else ("3: CARICO PRINCIPALE [F]" if index == 2 else "FACOLTATIVO [F]"))
         items.append(item)
     point_models.append(items)
     game._register_occluders(place)
@@ -156,7 +177,7 @@ func _option(title: String, callback: Callable, disabled: bool = false) -> void:
 func open_menu() -> void:
     if game.paused: return
     if active_area >= 0:
-        game.show_message("Rientra dal punto di uscita (F) per organizzare la base.",3)
+        show_mission_help()
         return
     if game.hero.position.distance_to(board.position) > 6:
         game.show_message("G vicino alla bacheca nel cortile.",3)
@@ -345,6 +366,7 @@ func take_loot(index: int, heavy: bool) -> void:
     if bag_slots+slots > capacity():
         game.show_message("Carico pieno. Rientra o lascia il materiale facoltativo.",3)
         return
+    var new_note_index := -1
     used.append(index)
     bag_slots += slots
     bag_parts += 2 if index == 2 else (3 if heavy else 1)
@@ -353,11 +375,13 @@ func take_loot(index: int, heavy: bool) -> void:
         primary = true
         if active_area == 1: bag_cells += 1
         if not notes.has(active_area): notes.append(active_area)
+        new_note_index = active_area
     if heavy: _spawn_group(point(active_area,index)+Vector3(2,0,-4.5),2)
     menu.hide()
     _sync_points()
     game.show_message("Carico %d/%d. Puoi rientrare o cercare altro materiale." % [bag_slots,capacity()],3)
     game._save_progress()
+    if new_note_index >= 0: show_collected_note(new_note_index)
 func _spawn_group(at: Vector3, count: int) -> void:
     for i in range(count):
         if game.enemies.size() < 32: game._spawn_enemy(at+Vector3(i*1.2,.13,0),"normal",false)
@@ -398,18 +422,28 @@ func clamp_hero(at: Vector3) -> Vector3:
     var c := center(active_area)
     return Vector3(clampf(at.x,c.x-16,c.x+16),at.y,clampf(at.z,-14,14))
 func _process(_delta: float) -> void:
-    if game == null or game.paused: return
+    if game == null: return
+    objective_marker.visible = active_area >= 0
+    if game.paused: return
     hint.visible = active_area >= 0
     if active_area >= 0:
         hint.position = game.hero.position+Vector3(0,2.7,0)
-        hint.text = "CARICO %d/%d | PUNTI %d/2 | USCITA A SUD" % [bag_slots,capacity(),int(switches[0])+int(switches[1])]
+        objective_marker.position = objective_position()
+        objective_label.text = "RIENTRO [F]" if primary else "OBIETTIVO %d [F]" % (objective_index()+1)
+        hint.text = "F: interagisci" if game.hero.position.distance_to(objective_position()) < 2.6 else "Segui il segnale dorato"
 func progress_text() -> String:
     var count := int(completed[0])+int(completed[1])+int(completed[2])
+    if active_area >= 0: return mission_instruction()
     if count == 3: return "RICOGNIZIONI COMPLETATE: 3/3 | nuove attivita e base operative"
-    if active_area >= 0: return "SPEDIZIONE | CARICO %d/%d | PUNTI %d/2" % [bag_slots,capacity(),int(switches[0])+int(switches[1])]
     if game.base_level < 2: return "G alla bacheca: spedizioni dopo l'ampliamento"
     if count == 0: return "G: prima spedizione disponibile"
-    return "G: spedizioni %d/3 | componenti %d | celle %d" % [count,parts,cells]
+    if not stations.has("workshop"): return "G alla bacheca: costruisci l'officina"
+    if not working("workshop"): return "Ripara l'officina per proseguire"
+    if not tool: return "G alla bacheca: prepara gli attrezzi da campo"
+    if not completed[1]: return "G alla bacheca: seconda spedizione disponibile"
+    if not stations.has("generator"): return "G alla bacheca: costruisci il generatore"
+    if not working("generator"): return "Ripara il generatore per proseguire"
+    return "G alla bacheca: ricognizione attrezzata disponibile"
 func show_notes() -> void:
     _clear_menu("APPUNTI DI CAMPO")
     var entries: Array = load("res://resources/field_entries.gd").new().entries
@@ -528,12 +562,13 @@ func _dress_area(place: Node3D, area: int) -> void:
         for x in [-12,12]:
             game._box(place,"Supporto",Vector3(x,1.6,-10),Vector3(.25,3.2,.25),"#87866b")
             game._box(place,"Pannello",Vector3(x,2.6,-10),Vector3(2,.15,1.2),"#546f76",.2)
+    preload("res://scripts/mission_landscape.gd").new().dress(game,place,area)
     game._cone(place,"Segnale_rientro",Vector3(0,.25,11),1.1,.06,"#b5cda3",1.1)
 
 func _show_menu() -> void:
     menu.popup_centered()
     # Lascia libero il canale degli allarmi anche quando si consulta la bacheca.
-    menu.position.y = maxi(menu.position.y,190)
+    menu.position.y = maxi(menu.position.y,250)
 
 func steer(at: Vector3, direction: Vector3) -> Vector3:
     # Aggiramento locale delle coperture; resta separato dall'IA delle orde alla base.
@@ -542,3 +577,58 @@ func steer(at: Vector3, direction: Vector3) -> Vector3:
     if game.has_clear_path(at,at+side*1.8): return side
     if game.has_clear_path(at,at-side*1.8): return -side
     return -direction
+
+func objective_index() -> int:
+    if primary: return -1
+    if not switches[0]: return 0
+    if not switches[1]: return 1
+    return 2
+
+func objective_position() -> Vector3:
+    if active_area < 0: return board.position
+    return entrance(active_area) if primary else point(active_area,objective_index())
+
+func mission_instruction() -> String:
+    var index := objective_index()
+    var action := "4/4 Torna all'ingresso e premi F per consegnare"
+    if index >= 0:
+        var actions: Array = [
+            ["1/4 Ispeziona il punto 1 [F]","2/4 Ispeziona il punto 2 [F]","3/4 Recupera la cassa principale [F]"],
+            ["1/4 Scegli l'alimentazione al quadro 1 [F]","2/4 Ripristina il quadro 2 [F]","3/4 Recupera i componenti principali [F]"],
+            ["1/4 Metti in sicurezza e rileva il punto 1 [F]","2/4 Rileva il punto 2 senza zombie vicini [F]","3/4 Recupera i risultati nella cassa [F]"]]
+        action = actions[active_area][index]
+    var delta: Vector3 = objective_position()-game.hero.position
+    var direction := "NORD" if delta.z < 0 else "SUD"
+    if absf(delta.x) > absf(delta.z)*2: direction = "EST" if delta.x > 0 else "OVEST"
+    elif absf(delta.x) > 2: direction += "-EST" if delta.x > 0 else "-OVEST"
+    var cargo := "G: guida | Conserva 1 posto per la cassa"
+    if primary: cargo = "G: guida | Rientra o cerca carico facoltativo"
+    elif bag_slots >= capacity(): cargo = "Carico pieno: rientra con il recupero parziale"
+    return "%s\nSegnale dorato: %s · %dm | Carico %d/%d\n%s" % [action,direction,ceili(Vector2(delta.x,delta.z).length()),bag_slots,capacity(),cargo]
+
+func show_collected_note(index: int) -> void:
+    if not notes.has(index) or note_open: return
+    var entries: Array = load("res://resources/field_entries.gd").new().entries
+    game._end_camera_drag()
+    note_previous_pause = game.paused
+    game.paused = true
+    note_open = true
+    game.hero.clear_mouse_destination()
+    note_dialog.dialog_text = entries[index]
+    note_dialog.popup_centered(Vector2i(650,320))
+
+func close_note() -> void:
+    if not note_open: return
+    note_dialog.hide()
+    note_open = false
+    game.paused = note_previous_pause
+
+func show_mission_help() -> void:
+    if active_area < 0 or game.paused: return
+    game.hero.clear_mouse_destination()
+    _clear_menu("COME COMPLETARE LA SPEDIZIONE\n\n"+mission_instruction()+"\n\n1 e 2: segui i segnali numerati e premi F da vicino. Allontana gli zombie se il punto non e sicuro.\n3: recupera il carico principale al segnale dorato.\n4: torna al cerchio d'ingresso e premi F. La CONSEGNA completa la missione.\n\nLe altre casse sono FACOLTATIVE. Conserva un posto libero per il carico principale; il recupero pesante attira altri zombie. Puoi rientrare prima con un carico parziale e riprovare.\nG riapre questa guida.")
+    _option("Riprendi la spedizione",func(): menu.hide())
+    if not notes.is_empty(): _option("Rileggi ultimo appunto",func():
+        menu.hide()
+        show_collected_note(int(notes.back())))
+    _show_menu()

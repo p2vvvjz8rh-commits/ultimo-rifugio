@@ -25,6 +25,8 @@ func complete_route(game, heavy: bool = true) -> void:
     f.take_loot(3,heavy)
     game.hero.position = f.point(area,2)
     f.take_loot(2,false)
+    check(f.note_open and game.paused,"Lettura immediata anche quando l appunto era gia nello storico")
+    f.close_note()
     check(f.primary,"Recupero principale sbloccato dalle azioni sul campo")
 func run() -> void:
     var directory: String = ProjectSettings.globalize_path("user://frontier-tests")
@@ -50,6 +52,16 @@ func run() -> void:
     check(not f.unlocked(1) and not f.unlocked(2),"Progressione chiude le attivita successive all'inizio")
     f.enter_area(0)
     check(f.active_area == 0 and game.hero.position.x > 40,"Ingresso in area separata reale")
+    check(f.mission_instruction().contains("1/4") and f.objective_index() == 0,"Guida iniziale indica una prima azione concreta")
+    f._process(0)
+    check(f.objective_marker.visible and f.objective_marker.position == f.point(0,0),"Segnale dorato sul bersaglio reale")
+    f.open_menu()
+    check(f.menu.visible and f.menu_body.get_child(0).text.contains("COME COMPLETARE"),"G mostra istruzioni complete anche sul campo")
+    f.menu.hide()
+    for area in range(3):
+        var details: Node = f.models[area].get_node("Ambiente_spedizione")
+        check(details.find_children("*","MeshInstance3D",true,false).size() > 90,"Allestimento presente in ogni area")
+        check(details.find_children("*","StaticBody3D",true,false).is_empty(),"Nuovi dettagli non ostruiscono le interazioni collaudate")
     check(f.clamp_hero(game.hero.position).x > 40,"Movimento non ricondotto alla mappa originale")
     await physics_frame
     await physics_frame
@@ -68,6 +80,15 @@ func run() -> void:
         f.interact()
     game.hero.position = f.point(0,2)
     f.take_loot(2,false)
+    check(f.note_open and f.note_dialog.visible and game.paused,"Appunto aperto subito alla raccolta con gioco in pausa")
+    var escape := InputEventKey.new()
+    escape.keycode = KEY_ESCAPE
+    escape.pressed = true
+    game._input(escape)
+    check(game.paused,"Comandi mondo non riattivano il gioco durante la lettura")
+    f.note_dialog.confirmed.emit()
+    check(not f.note_open and not game.paused,"Chiusura lettore ripristina correttamente il gioco")
+    check(f.mission_instruction().contains("4/4") and f.objective_position() == f.entrance(0),"Guida e segnale indicano il rientro dopo il recupero")
     check(f.bag_slots == 3 and f.bag_parts == 5,"Scelta rischio/carico e recupero principale compatibili")
     game._save_progress()
     var raw: String = FileAccess.get_file_as_string(game._save_directory().path_join("partita.json"))
@@ -157,6 +178,8 @@ func run() -> void:
     f.interact()
     game.hero.position = f.point(1,2)
     f.take_loot(2,false)
+    check(f.note_open and game.paused,"Lettura immediata anche quando l appunto era gia nello storico")
+    f.close_note()
     check(f.bag_parts == 4,"Argano premia il rischio con due componenti aggiuntivi")
     var banked: int = f.parts
     game.hero.hit_grace = 0

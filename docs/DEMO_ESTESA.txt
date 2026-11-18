@@ -65,3 +65,15 @@ Le nuove suite controllano 1840 scansioni fisiche del perimetro, angoli,
 brecce, generazione, avvisi, preventivi e percorso completo di progressione.
 CI esegue anche le due nuove suite sul PCK esportato con motore Windows 4.7.2, oltre al doppio
 avvio con salvataggio. Il rendering e il ritmo Windows richiedono collaudo.
+
+RIFINITURA DOPO IL COLLAUDO DELLA DEMO
+- Funzioni provate dal tester considerate funzionanti; main resta invariato.
+- Allestimenti statici dedicati nelle tre aree: terreno calpestato, vegetazione,
+  materiali e postazioni ambientali. Nessuna nuova collisione sui punti di missione.
+- Guida persistente in quattro fasi, punti numerati, segnale dorato, distanza
+  e indicazione del prossimo obiettivo; G mostra istruzioni complete sul campo.
+- Il recupero facoltativo e la consegna sono distinti; la guida ricorda lo spazio
+  necessario al carico principale e indica come proseguire alla base.
+- Il nuovo appunto viene aperto subito alla raccolta, con pausa protettiva.
+  Chiudere il lettore ripristina lo stato precedente; gli appunti rimangono rileggibili.
+- Nessun testo narrativo nei resoconti o nei log dei test. Salvataggi v8 invariati.

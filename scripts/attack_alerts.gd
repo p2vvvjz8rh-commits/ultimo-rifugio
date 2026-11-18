@@ -16,7 +16,7 @@ func configure(world) -> void:
     box.set_anchors_preset(Control.PRESET_CENTER_TOP)
     box.offset_left = -280
     box.offset_right = 280
-    box.offset_top = 132
+    box.offset_top = 190
     box.mouse_filter = Control.MOUSE_FILTER_IGNORE
     add_child(box)
     for i in range(2):

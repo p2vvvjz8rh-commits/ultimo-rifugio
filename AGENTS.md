@@ -42,7 +42,8 @@ Progetto Godot 4.x per Windows con aggiornamento automatico via GitHub. Lo svilu
 - G apre la bacheca; H usa kit. Conservare stato della spedizione, carico e incontri nei salvataggi v8. Nessun nuovo tipo di zombie, difese avanzate ancora rinviate.
 - Implementato in Alfa 14: cancello riservato al protagonista, ripara tutto al banco, ispezione/riparazione individuale, deterioramento geometrico, recupero materiali e camera orbitale.
 - Conserva la possibilità di raggiungere e usare il banco, l'accesso alla base e il salvataggio durante aggiornamenti.
-- Nuove missioni e aree devono avere un obiettivo comprensibile ed evitare ripetizione eccessiva.
+- Nuove missioni e aree devono avere un obiettivo comprensibile ed evitare ripetizione eccessiva. Guida per fasi persistente, segnale sul bersaglio e istruzioni G disponibili anche sul campo.
+- Le note raccolte vanno aperte immediatamente con pausa protettiva; ripristinare lo stato precedente alla chiusura. Non rivelare testi narrativi nei controlli grafici: usare testo di prova.
 
 ## Narrazione: protocollo anti-spoiler
 - La regola condivisa è: **«La storia sarà il mio segreto e la tua avventura»**.
