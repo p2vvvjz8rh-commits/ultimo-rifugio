@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: 9b77f62f137a4432f21c4c81d3d5301a19ebd9c6
-      CANDIDATE_TAG: candidata-alfa15-9b77f62
-      VERIFIED_RUN: '44140024752'
+      CANDIDATE_SHA: adba17f1dd63ba64f853cb14c7b31a9419e3a3ff
+      CANDIDATE_TAG: demo-estesa-adba17f
+      VERIFIED_RUN: '44282845926'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-9b77f62f137a4432f21c4c81d3d5301a19ebd9c6
-          run-id: 44140024752
+          name: UltimoRifugio-candidata-Windows-adba17f1dd63ba64f853cb14c7b31a9419e3a3ff
+          run-id: 44282845926
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-Alfa15-candidata-9b77f62.zip')
+          archive = pathlib.Path('UltimoRifugio-DemoEstesa-Windows-adba17f.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -61,28 +61,37 @@ jobs:
             echo 'La prerelease esiste gia: non viene sovrascritta.'
             exit 0
           fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST -f "ref=refs/tags/$CANDIDATE_TAG" -f "sha=$CANDIDATE_SHA"
+          fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
-          Alfa 15 candidata: scorta di materiali e ampliamento del cortile.
+          Demo estesa Alfa 15: candidata separata, senza aggiornare la versione stabile.
 
-          Scarica lo ZIP, estrai tutto in una NUOVA cartella e avvia AVVIA_CANDIDATA.bat.
-          Alfa 14 rimane la versione stabile: nessun aggiornamento automatico e nessun merge in main.
-          Conserva CANDIDATA_PORTATILE.txt per isolare i dati del collaudo.
+          Scarica lo ZIP ed estrai TUTTO in una NUOVA cartella. Avvia AVVIA_CANDIDATA.bat.
+          Conserva CANDIDATA_PORTATILE.txt per mantenere i salvataggi accanto alla demo.
+          PROVA DEMO ESTESA permette di iniziare il nuovo ciclo con cortile ampliato:
+          conserva la partita precedente in backup e lascia le nuove attivita da completare.
+          Puoi anche proseguire dall'inizio o usare una COPIA del salvataggio della candidata precedente.
 
-          Prova breve: costruisci la palizzata, raggiungi il carretto a SUD-EST e premi F.
-          Resta vicino al carico e proteggilo fino alla consegna davanti al cancello.
-          Verifica anche il nuovo tentativo dopo una perdita e la ripresa dopo chiusura del gioco.
-          Il primo recupero sblocca l'ampliamento al banco (E), al costo di 120 legno e 60 monete.
-          Dopo l'ampliamento prova accesso al cancello, riparazioni e riapertura della partita.
-          F3 offre risorse e comandi di prova per abbreviare il collaudo.
+          Correzioni: allarmi distinti per orde e difese con zona; riparazioni individuali al 100%
+          e costo proporzionale; Ripara tutto coerente; corretti giunti fisici e generazione zombie
+          nel cortile ampliato. Carretto, ampliamento, movimento e camera conservati.
 
-          Controlli automatici Godot 4.7.2: suite Linux, compatibilita JSON v8,
-          backup protettivi, esportazione e avvio/salvataggio/riapertura Windows headless.
-          Rendering della base ampliata controllato su Linux; resa e ritmo su Windows da collaudare.
-          I salvataggi precedenti restano compatibili, con backup pre Alfa 15 prima dei nuovi campi.
-          Nessuna modifica narrativa in questa candidata.
+          Nuovo ciclo integrato: tre spedizioni, recuperi facoltativi e scelte di rischio/carico,
+          officina, magazzino e generatore fisici, attrezzi e kit da campo. G alla bacheca; H usa kit.
+          Le costruzioni hanno salute, deterioramento geometrico, crollo e riparazioni individuali.
+          Contenuti narrativi aggiuntivi da scoprire solo nel gioco.
+
+          Verifiche Godot 4.7.2: tutte le suite Linux, 1840 scansioni fisiche delle difese,
+          compatibilita v8 e backup, progressione completa delle spedizioni, esportazione,
+          doppio avvio dell'EXE Windows e suite sul PCK esportato con motore Windows ufficiale.
+          Controllo grafico Linux eseguito. Resa, prestazioni e durata in una partita Windows
+          restano da collaudare: nessuna durata in minuti viene dichiarata senza misurazione.
+
+          Main e Alfa 14 restano invariati. Prerelease di collaudo, mai sostituire la cartella stabile.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-Alfa15-candidata-9b77f62.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoEstesa-Windows-adba17f.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Alfa 15 candidata 9b77f62 — scorta e ampliamento' \
+            --prerelease --latest=false --title 'Demo estesa Alfa 15 adba17f — solo collaudo' \
             --notes-file note-candidata.txt
