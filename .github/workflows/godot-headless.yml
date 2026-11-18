@@ -78,7 +78,33 @@ jobs:
               $save = Join-Path $folder 'salvataggi/partita.json'
               if (-not (Test-Path $save)) { throw 'Salvataggio portatile Windows mancante' }
               $data = Get-Content $save -Raw | ConvertFrom-Json
-              if ($data.version -ne 8 -or $null -eq $data.salvage -or $null -eq $data.wall_hp -or $null -eq $data.expedition -or $data.development_cycle -ne 15 -or $data.base_level -ne 1) { throw 'Salvataggio Windows incompleto' }
+              if ($data.version -ne 8 -or $null -eq $data.salvage -or $null -eq $data.wall_hp -or $null -eq $data.expedition -or $null -eq $data.frontier -or $data.development_cycle -ne 15 -or $data.base_level -ne 1) { throw 'Salvataggio Windows incompleto' }
             }
           } finally { Pop-Location }
           Write-Host 'OK: candidata Windows avviata e riaperta con salvataggio v8. Rendering interattivo da collaudare.'
+
+      - name: Recupera soltanto i sorgenti dei test per il PCK Windows
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: source-tests
+      - name: Difese e percorso demo sul motore Windows release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($suite in @('defense_integrity_and_alerts','frontier_progression')) {
+            $isolated = Join-Path $env:RUNNER_TEMP "demo-$suite"
+            New-Item -ItemType Directory -Force $isolated | Out-Null
+            Copy-Item candidata/UltimoRifugio.exe,candidata/UltimoRifugio.pck,candidata/CANDIDATA_PORTATILE.txt,candidata/COMMIT.txt $isolated
+            $script = (Resolve-Path "source-tests/tests/$suite.gd").Path
+            $out = Join-Path $env:RUNNER_TEMP "$suite-out.log"
+            $err = Join-Path $env:RUNNER_TEMP "$suite-err.log"
+            $exe = Join-Path $isolated 'UltimoRifugio.exe'
+            $process = Start-Process -FilePath $exe -ArgumentList @('--headless','--audio-driver','Dummy','--script',$script) -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            $process | Wait-Process -Timeout 180
+            $process.Refresh()
+            Get-Content $out,$err
+            if ($process.ExitCode -ne 0) { throw "Suite Windows $suite fallita: $($process.ExitCode)" }
+            if (Select-String -Path $out,$err -Pattern 'ERROR:|Parse Error:|FATAL:') { throw "Errori Godot Windows: $suite" }
+          }
+          Write-Host 'OK: scansioni difese e progressione completa demo eseguite anche su Windows release.'

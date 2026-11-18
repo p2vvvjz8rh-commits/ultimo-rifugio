@@ -1,0 +1,67 @@
+ULTIMO RIFUGIO - DEMO ESTESA ALFA 15 (CANDIDATA)
+================================================
+Non e' una pubblicazione stabile. Main resta ad Alfa 14.
+Carretto e ampliamento sono conservati come collaudati dal giocatore.
+
+CORREZIONI PRIORITARIE
+- Preavviso orda a 20 secondi e avviso all'arrivo, in un canale dedicato.
+- Allarme difese distinto, con zona cardinale/cancello/struttura interessata.
+  I colpi vengono aggregati: ripetizione non prima di 8 secondi; una breccia
+  aggiorna subito l'allarme. Bottino e messaggi ordinari non lo cancellano.
+- Riparazioni individuali complete e atomiche. Costo legno arrotondato
+  proporzionalmente agli HP mancanti: mura 12, cancello 14, rifugio 12,
+  banco 8, nuove postazioni 10 per una ricostruzione da zero.
+  Ripara tutto usa la somma degli stessi preventivi; nessun lavoro parziale
+  se i materiali non bastano. Le finestre mostrano costo e insufficienza.
+- Collider delle sezioni sovrapposti di 16 cm lungo i giunti: eliminato il
+  passaggio fisico riprodotto a meta dei lati nel recinto originale.
+- Tutte le generazioni zombie passano da un filtro centrale che li tiene
+  fuori dal perimetro attuale, compreso l'ampliamento. La vecchia eccezione
+  per i rumori usava ancora le dimensioni originali. Espandere sposta fuori
+  gli zombie presenti nella sola fascia appena acquisita, senza rimuovere
+  quelli gia entrati attraverso una breccia nel cortile precedente.
+
+CICLO DI GIOCO
+- G presso la bacheca apre spedizioni, postazioni e strumenti.
+- Tre aree separate, realizzate a mano, con accessi progressivi e attivita
+  sul campo. Si puo rientrare in anticipo con quanto e' stato recuperato.
+- Recuperi facoltativi leggeri o pesanti: scelta fra capacita, materiali
+  e incontri aggiuntivi. Incontri limitati, nessun nuovo tipo di zombie.
+- La seconda attivita offre anche una scelta fra recupero silenzioso
+  e argano rumoroso piu redditizio. La terza richiede spazio sicuro per
+  effettuare i rilevamenti. Nessuna attesa produttiva obbligatoria.
+- Officina: attrezzi per esplorare e kit da campo (H per curarsi).
+- Magazzino: capacita trasportabile da 3 a 5 posti.
+- Generatore: utilizza un materiale recuperato e apre l'attivita attrezzata.
+- Le postazioni sono fisiche, hanno 160 HP, barre, deterioramento geometrico
+  reversibile e crollo. Si ispezionano e riparano come le altre strutture;
+  anche Ripara tutto le include. Gli zombie entrati possono attaccarle.
+- Le spedizioni consegnate sbloccano progetti e forniscono risorse per
+  costruire; ripeterle non duplica i premi iniziali. Nessun reddito passivo.
+- Contenuti narrativi brevi consultabili solo nel gioco, dopo la raccolta.
+
+AVVIO E PROGRESSI
+Estrai lo ZIP in una NUOVA cartella; apri AVVIA_CANDIDATA.bat.
+Conserva CANDIDATA_PORTATILE.txt: i salvataggi rimangono accanto alla demo.
+Non sostituire la cartella stabile e non usare l'aggiornatore per la candidata.
+Puoi giocare dall'inizio o scegliere PROVA DEMO ESTESA: quest'ultima conserva
+la partita in backup e avvia con cortile ampliato, arma Lv.2, 80 legno e
+30 monete. Non completa le nuove attivita e non assegna progetti nuovi.
+I salvataggi v8 esistenti rimangono leggibili. Prima di scrivere i nuovi
+campi si conserva partita_pre_demo.json; il fallimento del backup blocca
+le scritture. Il nome storico del progetto e il percorso dati non cambiano.
+Si salvano anche area attiva, carico, scelta del recupero, HP degli incontri,
+postazioni e progressi: chiudere il gioco non completa o duplica un'attivita.
+La morte fa perdere soltanto il carico non consegnato e mantiene i progressi
+precedenti, oltre alla penalita monete gia esistente nella versione stabile.
+
+QUALITA E LIMITI
+La durata dipende da esplorazione e scelte: non e' dichiarata una misura
+in minuti finche non sara' valutata in una partita reale su Windows.
+La demo aggiunge un percorso completo di tre attivita e tre postazioni;
+non usa attese o semplicemente orde piu numerose per prolungarlo.
+Eseguire tools/VERIFICA_LINUX.sh con Godot 4.7.2 e l'esportazione ufficiale.
+Le nuove suite controllano 1840 scansioni fisiche del perimetro, angoli,
+brecce, generazione, avvisi, preventivi e percorso completo di progressione.
+CI esegue anche le due nuove suite sul PCK Windows release, oltre al doppio
+avvio con salvataggio. Il rendering e il ritmo Windows richiedono collaudo.

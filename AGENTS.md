@@ -36,7 +36,10 @@ Progetto Godot 4.x per Windows con aggiornamento automatico via GitHub. Lo svilu
 - Tutte le costruzioni hanno salute autonoma, barre sotto il 100%, tre condizioni geometriche (integro, danneggiato, grave) e crollo riconoscibile a zero.
 - Per ogni costruzione futura associare tutte le mesh al componente `structure_visual.gd`: spaccature e parti mancanti devono sostituire la geometria sana. Per modelli importati predisporre varianti appropriate; colore, decal o piccoli detriti aggiunti da soli non bastano. Verificare riparazione reversibile e collisioni invariate.
 - Alfa 14 approvata dal tester anche dopo installazione tramite aggiornatore Windows. Alfa 15 resta sul ramo separato fino al nuovo collaudo.
-- In sviluppo Alfa 15: scorta carretto, progetto e ampliamento del cortile; dettagli in docs/ALFA15.txt. Nessun merge automatico.
+- In sviluppo Alfa 15: carretto e ampliamento gia provati; ciclo esteso in docs/DEMO_ESTESA.txt. Tre spedizioni e postazioni integrate, nessun merge automatico.
+- Riparazioni individuali sempre complete; costo proporzionale agli HP mancanti. Ripara tutto somma gli stessi preventivi e non esegue lavori parziali.
+- Ogni generazione zombie deve usare safe_enemy_spawn; mai generare dentro il perimetro attuale. I giunti fisici delle pareti si sovrappongono per evitare attraversamenti sul bordo condiviso.
+- G apre la bacheca; H usa kit. Conservare stato della spedizione, carico e incontri nei salvataggi v8. Nessun nuovo tipo di zombie, difese avanzate ancora rinviate.
 - Implementato in Alfa 14: cancello riservato al protagonista, ripara tutto al banco, ispezione/riparazione individuale, deterioramento geometrico, recupero materiali e camera orbitale.
 - Conserva la possibilità di raggiungere e usare il banco, l'accesso alla base e il salvataggio durante aggiornamenti.
 - Nuove missioni e aree devono avere un obiettivo comprensibile ed evitare ripetizione eccessiva.

@@ -1,9 +1,11 @@
-Ultimo Rifugio - Alfa 15 - candidata in sviluppo
+Ultimo Rifugio - Demo estesa Alfa 15 - candidata
 
-- Scorta di un carico a sud-est: il carretto segue il protagonista vicino e attende se si allontana.
-- Due incontri durante il trasporto; carico vulnerabile e tentativo ripetibile in caso di perdita.
-- Consegna al cancello: materiali, monete e progetto permanente per ampliare il cortile.
-- Ampliamento al banco: 120 legno e 60 monete, perimetro piu ampio e cancello riposizionato.
-- Danni, brecce e funzioni di riparazione conservati durante l'ampliamento.
-- Salvataggi JSON v8 compatibili con Alfa 14, backup automatico prima dei nuovi campi.
-- Alfa 14 resta la versione stabile; candidata separata per il collaudo.
+- Avvisi dedicati per orde e difese sotto attacco, con zona e ripetizioni limitate.
+- Riparazione individuale al 100%, preventivo proporzionale e Ripara tutto coerente.
+- Correzione dei giunti fisici della palizzata e della generazione dentro l'ampliamento.
+- Tre spedizioni collegate a officina, magazzino e generatore, con carico e scelte di rischio.
+- Attrezzi e kit da campo; nuove costruzioni con HP, deterioramento, crollo e riparazioni.
+- Avvio rapido facoltativo della demo, con backup della partita corrente.
+- Salvataggi v8 compatibili e separati dalla versione stabile; backup pre demo.
+- Contenuti narrativi aggiuntivi da scoprire giocando.
+- Nessun merge in main: Alfa 14 rimane la versione stabile.

@@ -49,10 +49,11 @@ assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
     'Non sovrascrivere la tua unica copia di una partita.\n'
     'Controlli: WASD, E banco, B costruisci/ripara, clic destro ispeziona, F recupero.\n'
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
-    'COLLAUDO: F vicino al carretto a SUD-EST, scorta fino davanti al cancello.\n'
-    'Resta entro 3,8 metri e difendi il carico. Prova perdita e nuovo tentativo.\n'
-    'Poi E al banco: amplia il cortile con 120 legno e 60 monete.\n'
-    'Controlla accesso, riparazioni e riapertura della partita dopo ampliamento.\n'
+    'PROVA DEMO ESTESA avvia il nuovo ciclo con cortile ampliato; conserva un backup.\n'
+    'G presso la bacheca: spedizioni, costruzioni e strumenti. H: usa un kit.\n'
+    'F nelle spedizioni: interagisci con il punto vicino o rientra dall ingresso.\n'
+    'COLLAUDO: allarmi, riparazioni al 100%, percorso delle spedizioni e ripresa partita.\n'
+    'La durata e le prestazioni interattive Windows restano da valutare giocando.\n'
     'Rotella premuta + trascinamento ruota a 360 gradi e inclina la camera.\n'
     'Home ripristina la visuale iniziale; WASD segue la camera ruotata.\n'
     'Lo scorrimento della rotella mantiene lo zoom, anche in pausa.\n'
@@ -74,7 +75,7 @@ for stage in packed-start packed-reload; do
 import json, sys
 with open(sys.argv[1], encoding='utf-8') as stream:
     data = json.load(stream)
-assert data['version'] == 8 and 'salvage' in data and 'wall_hp' in data
+assert data['version'] == 8 and 'salvage' in data and 'wall_hp' in data and 'frontier' in data
 print('OK: PCK release, dati portatili e salvataggio v8')
 PYTEST
 done

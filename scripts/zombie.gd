@@ -78,10 +78,14 @@ func _physics_process(delta: float) -> void:
     var cart_target := false
     var player_distance := global_position.distance_to(game.hero.global_position)
     var hears_noise: bool = not from_wave and game.noise_time > 0.0 and global_position.distance_to(game.noise_position) < 9.0
-    if (player_distance < 4.4 or hears_noise) and game.has_clear_path(global_position, game.hero.global_position):
+    var in_field: bool = game.frontier.active_area >= 0 and position.x > 40
+    if in_field and player_distance < 12:
+        target_point = game.hero.global_position
+        attack_player = game.has_clear_path(global_position,game.hero.global_position)
+    elif (player_distance < 4.4 or hears_noise) and game.has_clear_path(global_position, game.hero.global_position):
         target_point = game.hero.global_position
         attack_player = true
-    elif from_wave or ((player_distance < 4.4 or hears_noise) and game.stockade_built):
+    elif from_wave or ((player_distance < 4.4 or hears_noise) and game.stockade_built and not in_field):
         target_point = game.defense_target(global_position)
         base_target = true
     elif game.expedition.target_available(global_position):
@@ -119,6 +123,7 @@ func _physics_process(delta: float) -> void:
     else:
         if distance > 0.05:
             var direction := to_target.normalized()
+            if in_field: direction = game.frontier.steer(global_position,direction)
             visual.look_toward(direction, delta)
             velocity.x = direction.x * speed
             velocity.z = direction.z * speed

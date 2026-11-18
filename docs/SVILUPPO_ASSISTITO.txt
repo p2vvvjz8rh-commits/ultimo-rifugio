@@ -25,3 +25,15 @@ Procedura aggiornata per Alfa 14. Documentazione tecnica senza anticipazioni.
   ripetuti su quel tag. Non ripubblicare o sovrascrivere una release esistente.
 - Le candidate restano prerelease separate; non attivano l'aggiornatore.
 - Tutti i resoconti, commit e note di release devono restare privi di spoiler.
+
+CICLO DEMO ESTESA ALFA 15
+- Main rimane fermo ad Alfa 14. La PR di sviluppo resta in bozza.
+- Dettagli non narrativi in docs/DEMO_ESTESA.txt.
+- Nuove suite: defense_integrity_and_alerts e frontier_progression.
+  Si eseguono anche sul PCK Windows release usando sorgenti di test esterni,
+  in copie temporanee separate; nessun test o salvataggio entra nello ZIP.
+- Conservare partita_pre_demo.json prima dei nuovi campi opzionali.
+- Una sola prerelease coerente dopo i controlli: non sovrascrivere le candidate
+  precedenti, non rendere la prerelease latest e non attivare l'aggiornatore.
+- Il collaudo Windows deve valutare soprattutto leggibilita, ritmo e stabilita
+  durante una partita continua; la durata non viene dedotta dai test automatici.

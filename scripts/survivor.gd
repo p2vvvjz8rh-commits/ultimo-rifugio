@@ -148,8 +148,7 @@ func _physics_process(delta: float) -> void:
     velocity.z = direction.z * speed
     velocity.y = -0.5
     move_and_slide()
-    global_position.x = clampf(global_position.x, -20.0, 20.0)
-    global_position.z = clampf(global_position.z, -20.0, 20.0)
+    global_position = game.frontier.clamp_hero(global_position)
     # L'intenzione di movimento non basta: contro un ostacolo si resta fermi.
     var moved := Vector2(global_position.x-before_move.x,global_position.z-before_move.z)
     var moving_now: bool = moved.length() > maxf(delta,.001)*.12
@@ -209,6 +208,7 @@ func receive_damage(amount: float) -> void:
     hp = maxf(0.0, hp - amount * DAMAGE_MULTIPLIER)
     _update_health_bar()
     if hp <= 0.0:
+        game.frontier.leave_area(false)
         game.expedition.fail()
         game.salvage.drop_carried()
         hp = 100.0

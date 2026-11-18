@@ -3,13 +3,11 @@ extends Node3D
 ## Asset e animazioni Quaternius glTF, senza conversione in sprite.
 
 const FENCE_COST := 45
-const REPAIR_COST := 18
 const FIRST_RAID_TIME := 240.0
 const WORLD_HALF := 22.0
 const WALL_HP_MAX := 240.0
 const GATE_HP_MAX := 280.0
 const BENCH_REPAIR_COST := 8
-const BENCH_REPAIR_AMOUNT := 100.0
 const BENCH_HP_MAX := 130.0
 const CABIN_HP_MAX := 150.0
 const CABIN_DAMAGE_MULTIPLIER := .35
@@ -84,6 +82,7 @@ var bench_hint_time: float = 0.0
 var new_game_dialog: ConfirmationDialog
 var skip_save_on_exit: bool = false
 var save_backup_ready: bool = true
+var pending_demo_start := false
 var supply_caches: Array[Dictionary] = []
 var collected_supplies: int = 0
 var supply_goal: int = 4
@@ -104,6 +103,8 @@ var test_stats: Label
 var radio_station
 var salvage
 var expedition
+var alerts
+var frontier
 var base_level: int = 1
 const EXPANSION_WOOD := 120
 const EXPANSION_COINS := 60
@@ -126,6 +127,12 @@ func _ready() -> void:
     expedition.configure(self)
     _create_camera()
     _create_hud()
+    alerts = preload("res://scripts/attack_alerts.gd").new()
+    add_child(alerts)
+    alerts.configure(self)
+    frontier = preload("res://scripts/frontier_progression.gd").new()
+    add_child(frontier)
+    frontier.configure(self)
     DisplayServer.window_set_title("Ultimo Rifugio · " + _candidate_identity())
     print("Ultimo Rifugio · " + _candidate_identity())
     _load_progress()
@@ -134,7 +141,7 @@ func _ready() -> void:
     _spawn_supply_cache()
     _spawn_supply_cache()
     _sync_structure_visuals()
-    show_message("ALFA 15: recuperi a OVEST; carretto da scortare a SUD-EST (F).",6.0)
+    show_message("DEMO: G alla bacheca per spedizioni e postazioni dopo l'ampliamento.",6.0)
     if not save_backup_ready:
         show_message("Backup della partita non riuscito: salvataggio sospeso per proteggere i dati.",30.0)
 
@@ -147,6 +154,7 @@ func _process(delta: float) -> void:
     if last_mouse_button and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
         last_mouse_button = false
     elapsed += delta
+    alerts.tick()
     save_time += delta
     message_time -= delta
     noise_time = maxf(0.0, noise_time - delta)
@@ -211,8 +219,12 @@ func _input(event: InputEvent) -> void:
                 if not paused: _test_start_raid()
             KEY_F3:
                 _toggle_test_panel()
+            KEY_G:
+                frontier.open_menu()
+            KEY_H:
+                frontier.use_kit()
             KEY_F:
-                if not paused and not expedition.interact(): salvage.interact()
+                if not paused and not frontier.interact() and not expedition.interact(): salvage.interact()
             KEY_R:
                 if not paused and is_instance_valid(radio_station):
                     radio_station.activate()
@@ -557,7 +569,7 @@ func _spawn_initial_enemies() -> void:
 func _spawn_enemy(at: Vector3, variant: String, wave: bool) -> void:
     var mob = preload("res://scripts/zombie.gd").new()
     add_child(mob)
-    mob.global_position = at
+    mob.global_position = safe_enemy_spawn(at)
     mob.configure(self, variant, wave)
     enemies.append(mob)
 
@@ -670,8 +682,6 @@ func make_noise(where: Vector3, duration: float) -> void:
     var side: float = -1.0 if rng.randf() < 0.5 else 1.0
     var spawn_x: float = clampf(where.x + side * rng.randf_range(7.0, 10.0), -19.0, 19.0)
     var spawn_z: float = clampf(where.z + rng.randf_range(-7.0, 7.0), -19.0, 19.0)
-    if absf(spawn_x) < 5.9 and spawn_z > -8.8 and spawn_z < 4.8:
-        spawn_z = -10.0
     _spawn_enemy(Vector3(spawn_x,0.13,spawn_z), "normal", false)
 
 func _start_raid() -> void:
@@ -687,6 +697,7 @@ func _start_raid() -> void:
     next_raid = elapsed + maxf(250.0, 340.0 - float(raid_number) * 9.0)
     wood += 8
     coins += 5
+    alerts.raid_started(raid_number)
     show_message("ORDA %d - +8 LEGNO E +5 MONETE PER PREPARARTI!" % raid_number, 5.0)
 
 func _build_or_repair() -> void:
@@ -700,14 +711,16 @@ func _build_or_repair() -> void:
         _build_stockade()
         show_message("PALIZZATA + CANCELLO COSTRUITI!", 3.0)
     elif _has_damaged_defenses():
-        if wood < REPAIR_COST:
-            show_message("Servono %d legno per la riparazione." % REPAIR_COST, 2.0)
+        var total_cost: int = repair_all_cost()
+        if wood < total_cost:
+            show_message("Riparazione completa: servono %d legno, disponibili %d. Nessuna riparazione eseguita." % [total_cost,wood], 2.0)
             return
-        wood -= REPAIR_COST
+        wood -= total_cost
         gate_hp = GATE_HP_MAX
         gate_broken = false
         base_hp = CABIN_HP_MAX
         bench_hp = BENCH_HP_MAX
+        if is_instance_valid(frontier): frontier.restore_all()
         for section in wall_segments:
             section["hp"] = WALL_HP_MAX
             for mesh in section["visuals"]:
@@ -915,14 +928,14 @@ func _refresh_repair_menu() -> void:
     ]
     for item in descriptions:
         var option := Button.new()
-        option.text = "%s  |  %d legno  |  Danni: %d HP" % [str(item["label"]),int(item["cost"]),ceili(float(item["missing"]))]
-        option.disabled = float(item["missing"]) <= 0.0 or wood < int(item["cost"])
+        option.text = "%s | 100%%: %d legno | Danni %d HP%s" % [str(item["label"]),repair_cost(str(item["type"])),ceili(float(item["missing"]))," | insufficienti" if wood < repair_cost(str(item["type"])) else ""]
+        option.disabled = float(item["missing"]) <= 0.0 or wood < repair_cost(str(item["type"]))
         var selected: String = str(item["type"])
         option.pressed.connect(func(): _repair_selected(selected))
         body.add_child(option)
     var all_option := Button.new()
-    all_option.text = "Ripara tutto completamente | %d legno" % REPAIR_COST
-    all_option.disabled = not _has_damaged_defenses() or wood < REPAIR_COST
+    all_option.text = "Ripara tutto completamente | %d legno%s" % [repair_all_cost()," | materiali insufficienti" if wood < repair_all_cost() else ""]
+    all_option.disabled = not _has_damaged_defenses() or wood < repair_all_cost()
     all_option.pressed.connect(_repair_all_at_bench)
     body.add_child(all_option)
     var expand := Button.new()
@@ -943,61 +956,80 @@ func _max_wall_damage() -> float:
     return lost
 
 func _repair_selected(kind: String) -> void:
-    var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
+    if not _repair_exists(kind): return
+    var cost: int = repair_cost(kind)
     var manual: bool = manual_target != ""
     var location: Vector3 = _manual_position(kind) if manual else repair_bench.global_position
-    if paused or wood < cost or hero.global_position.distance_to(location) > 4.4 or (manual and kind != manual_target) or (not manual and bench_hp <= 0.0):
-        repair_popup.hide()
+    if paused or hero.global_position.distance_to(location) > 4.4 or (manual and kind != manual_target) or (not manual and bench_hp <= 0.0):
+        show_message("Avvicinati alla struttura o al banco funzionante per riparare.",3)
         return
-    var applied: float = 0.0
-    var repaired_name: String = ""
-    var feedback_position: Vector3 = _structure_position(kind)
-    if kind.begins_with("wall:"):
-        var index: int = int(kind.get_slice(":",1))
-        if index < 0 or index >= wall_segments.size():
-            return
-        var section: Dictionary = wall_segments[index]
-        applied = minf(WALL_HP_MAX-float(section["hp"]),BENCH_REPAIR_AMOUNT)
-        section["hp"] = float(section["hp"]) + applied
-        repaired_name = str(section["name"])
-        feedback_position = section["position"] + Vector3.UP
-    match kind:
-        "wall":
-            var target: Dictionary = {}
-            var damage: float = 0.0
-            for section in wall_segments:
-                var missing: float = WALL_HP_MAX - float(section["hp"])
-                if missing > damage:
-                    damage = missing
-                    target = section
-            if damage > 0.0:
-                applied = minf(damage,BENCH_REPAIR_AMOUNT)
-                target["hp"] = minf(WALL_HP_MAX,float(target["hp"])+applied)
-                repaired_name = str(target["name"])
-                feedback_position = target["position"] + Vector3.UP * 1.7
-                var col: CollisionShape3D = target["collider"]
-                col.set_deferred("disabled",false)
-        "gate":
-            applied = minf(GATE_HP_MAX-gate_hp,BENCH_REPAIR_AMOUNT)
-            gate_hp += applied
-            gate_broken = gate_hp <= 0.0
-            repaired_name = "Cancello"
-            _sync_gate_collision(current_gate_open > .03)
-        "cabin":
-            applied = minf(CABIN_HP_MAX-base_hp,75.0)
-            base_hp += applied
-            repaired_name = "Rifugio"
-        "bench":
-            applied = minf(BENCH_HP_MAX-bench_hp,65.0)
-            bench_hp += applied
-            repaired_name = "Banco di riparazione"
-    if applied > 0.0:
-        wood -= cost
-        _sync_structure_visuals()
-        _floating_tree_number(feedback_position,"+%d HP" % ceili(applied),true)
-        show_message("%s riparato: +%d HP" % [repaired_name,ceili(applied)],2.3)
-        _save_progress()
+    if wood < cost:
+        show_message("Riparazione completa: servono %d legno, disponibili %d. Nessuna riparazione eseguita." % [cost,wood],4)
+        return
+    if cost == 0: return
+    wood -= cost
+    if kind.begins_with("station:"):
+        frontier.restore_station(kind.get_slice(":",1))
+    elif kind.begins_with("wall:"):
+        wall_segments[int(kind.get_slice(":",1))]["hp"] = WALL_HP_MAX
+    else:
+        match kind:
+            "wall": wall_segments[_most_damaged_wall()]["hp"] = WALL_HP_MAX
+            "gate":
+                gate_hp = GATE_HP_MAX
+                gate_broken = false
+                _sync_gate_collision(current_gate_open > .03)
+            "cabin": base_hp = CABIN_HP_MAX
+            "bench": bench_hp = BENCH_HP_MAX
+    _sync_structure_visuals()
+    show_message("Struttura riparata al 100%% | %d legno" % cost,3)
+    _save_progress()
     repair_popup.hide()
+
+func _most_damaged_wall() -> int:
+    var found := -1
+    var lowest := WALL_HP_MAX+1
+    for i in range(wall_segments.size()):
+        if float(wall_segments[i]["hp"]) < lowest:
+            lowest = float(wall_segments[i]["hp"])
+            found = i
+    return found
+
+func _repair_exists(kind: String) -> bool:
+    if kind.begins_with("wall:"):
+        return kind.get_slice(":",1).is_valid_int() and int(kind.get_slice(":",1)) >= 0 and int(kind.get_slice(":",1)) < wall_segments.size()
+    if kind.begins_with("station:"): return frontier.stations.has(kind.get_slice(":",1))
+    return kind in ["wall","gate","cabin","bench"]
+
+func repair_cost(kind: String) -> int:
+    if not _repair_exists(kind): return 0
+    var maximum := WALL_HP_MAX
+    var health := WALL_HP_MAX
+    var timber := 12.0
+    if kind.begins_with("station:"):
+        return ceili((1.0-frontier.stations[kind.get_slice(":",1)]["hp"]/160.0)*10.0)
+    if kind.begins_with("wall:"): health = float(wall_segments[int(kind.get_slice(":",1))]["hp"])
+    match kind:
+        "wall": health = float(wall_segments[_most_damaged_wall()]["hp"]) if not wall_segments.is_empty() else maximum
+        "gate":
+            health = gate_hp
+            maximum = GATE_HP_MAX
+            timber = 14
+        "cabin":
+            health = base_hp
+            maximum = CABIN_HP_MAX
+        "bench":
+            health = bench_hp
+            maximum = BENCH_HP_MAX
+            timber = 8
+    return ceili(maxf(0,maximum-health)/maximum*timber-.00001)
+
+func repair_all_cost() -> int:
+    var cost := repair_cost("gate")+repair_cost("cabin")+repair_cost("bench")
+    for i in range(wall_segments.size()): cost += repair_cost("wall:%d" % i)
+    if is_instance_valid(frontier):
+        for key in frontier.stations: cost += repair_cost("station:"+str(key))
+    return cost
 
 func _structure_position(kind: String) -> Vector3:
     match kind:
@@ -1099,7 +1131,9 @@ func _wall_collision(title: String, center: Vector3, size: Vector3) -> void:
     fence_root.add_child(body)
     var collider := CollisionShape3D.new()
     var shape := BoxShape3D.new()
-    shape.size = size
+    # Giunti sovrapposti: due BoxShape tangenti possono lasciare passare
+    # un corpo esattamente sul bordo condiviso nel motion solver di Godot.
+    shape.size = size + (Vector3(.16,0,0) if size.x > size.z else Vector3(0,0,.16))
     collider.shape = shape
     collider.position = center
     body.add_child(collider)
@@ -1146,6 +1180,7 @@ func _create_defense_indicator(parent: Node3D, position_3d: Vector3) -> Label3D:
     return indicator
 
 func _has_damaged_defenses() -> bool:
+    if is_instance_valid(frontier) and frontier.has_damage(): return true
     if gate_broken or gate_hp < GATE_HP_MAX or base_hp < CABIN_HP_MAX or bench_hp < BENCH_HP_MAX:
         return true
     for section in wall_segments:
@@ -1176,6 +1211,8 @@ func defense_target(from_position: Vector3) -> Vector3:
     if not stockade_built:
         return Vector3(0.0,0.0,-3.6)
     if _inside_stockade(from_position):
+        var station_target: Vector3 = frontier.station_defense_target(from_position)
+        if station_target != Vector3.INF: return station_target
         return Vector3(0.0,0.0,-3.6)
     if from_position.z > gate_front_z()-.55 and absf(from_position.x) < 1.35:
         return Vector3(0.0,0.0,gate_front_z()+1.05) if not gate_broken else Vector3(0.0,0.0,gate_front_z()-1.5)
@@ -1218,7 +1255,9 @@ func defense_target(from_position: Vector3) -> Vector3:
 
 func attack_defense_at(from_position: Vector3, damage: float) -> void:
     if _inside_stockade(from_position):
+        if frontier.attack_near_station(from_position,damage): return
         if is_instance_valid(repair_bench) and from_position.distance_to(repair_bench.global_position) < 2.2 and bench_hp > 0.0:
+            alerts.attacked("BANCO",bench_hp <= damage*.36)
             bench_hp = maxf(0.0,bench_hp-damage*.36)
             if bench_hp <= 0.0:
                 show_message("BANCO DISTRUTTO! Ripristinalo con B.",3.0)
@@ -1227,6 +1266,7 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
             damage_base(damage)
         return
     if from_position.z > gate_front_z() and absf(from_position.x) < 1.35 and not gate_broken:
+        alerts.attacked("SUD - CANCELLO",gate_hp <= damage*.36)
         gate_hp = maxf(0.0,gate_hp-damage * .36)
         if gate_hp <= 0.0:
             gate_broken = true
@@ -1240,6 +1280,7 @@ func attack_defense_at(from_position: Vector3, damage: float) -> void:
     var section: Dictionary = wall_segments[index]
     if float(section["hp"]) <= 0.0:
         return
+    alerts.attacked(defense_zone(section["position"]),float(section["hp"]) <= damage*.36)
     section["hp"] = maxf(0.0, float(section["hp"]) - damage * .36)
     var hp: float = float(section["hp"])
     _sync_structure_visuals()
@@ -1322,6 +1363,7 @@ func damage_base(damage: float) -> void:
     # La casetta ha HP separati e viene colpita solo se lo zombie la raggiunge.
     if base_hp <= 0.0:
         return
+    alerts.attacked("RIFUGIO",base_hp <= damage*CABIN_DAMAGE_MULTIPLIER)
     base_hp = maxf(0.0, base_hp - damage*CABIN_DAMAGE_MULTIPLIER)
     _sync_structure_visuals()
     if base_hp <= 0.0:
@@ -1385,6 +1427,10 @@ func _create_hud() -> void:
     start_over.custom_minimum_size = Vector2(150,28)
     start_over.pressed.connect(_ask_new_game)
     left_vbox.add_child(start_over)
+    var demo_start := Button.new()
+    demo_start.text = "PROVA DEMO ESTESA"
+    demo_start.pressed.connect(_ask_demo_start)
+    left_vbox.add_child(demo_start)
     new_game_dialog = ConfirmationDialog.new()
     new_game_dialog.title = "Inizia una nuova partita?"
     new_game_dialog.dialog_text = "La partita attuale verra conservata come backup. Vuoi ricominciare da zero?"
@@ -1443,7 +1489,7 @@ func _create_hud() -> void:
     guide.offset_left = 18
     guide.offset_top = -113
     guide.offset_bottom = -90
-    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: ruota a 360°  •  Home: ricentra",12,Color("#fff0ce"))
+    var camera_hint := _label(root,"Rotella: zoom  •  Rotella premuta + trascinamento: ruota a 360°  •  Home: ricentra  •  G: spedizioni  •  H: kit",12,Color("#fff0ce"))
     camera_hint.add_theme_color_override("font_outline_color",Color("#17251c"))
     camera_hint.add_theme_constant_override("outline_size",5)
     camera_hint.anchor_top = 1
@@ -1465,7 +1511,7 @@ func _update_hud() -> void:
     info_hud.text = "RIFUGIO: %d/150   |   ARMA Lv.%d   |   UCCISIONI %d" % [ceili(base_hp),weapon_level,kills]
     var remain := maxi(0, ceili(next_raid - elapsed))
     objective_hud.text = "SCORTE %d/%d  |  ORDA %d:%02d" % [collected_supplies,supply_goal,int(remain / 60),remain % 60]
-    objective_hud.text += "\n" + expedition.objective_text()
+    objective_hud.text += "\n" + (expedition.objective_text() if expedition.active or base_level < 2 else frontier.progress_text())
     if salvage.carried > 0:
         objective_hud.text += " | CARICO %d/3 - TORNA ALLA BASE" % salvage.carried
     if is_instance_valid(radio_station) and radio_station.active:
@@ -1474,8 +1520,8 @@ func _update_hud() -> void:
         build_button.text = "RECINTO · %d LEGNO" % FENCE_COST
         build_button.disabled = wood < FENCE_COST
     else:
-        build_button.text = "RIPARA · %d LEGNO" % REPAIR_COST if _has_damaged_defenses() else "RECINTO COMPLETO"
-        build_button.disabled = (wood < REPAIR_COST) or not _has_damaged_defenses()
+        build_button.text = "RIPARA · %d LEGNO" % repair_all_cost() if _has_damaged_defenses() else "RECINTO COMPLETO"
+        build_button.disabled = (wood < repair_all_cost()) or not _has_damaged_defenses()
     var cost := 12 + (weapon_level - 1) * 14
     upgrade_button.text = "ARMA Lv.%d · %d MON." % [weapon_level,cost] if weapon_level < 4 else "ARMA MASSIMA"
     upgrade_button.disabled = coins < cost or weapon_level >= 4
@@ -1566,17 +1612,41 @@ func show_message(message: String, duration: float = 2.5) -> void:
     message_time = duration
 
 func _ask_new_game() -> void:
-    if is_instance_valid(new_game_dialog):
-        new_game_dialog.popup_centered()
+    pending_demo_start = false
+    new_game_dialog.title = "Inizia una nuova partita?"
+    new_game_dialog.dialog_text = "La partita attuale verra conservata come backup. Vuoi ricominciare da zero?"
+    new_game_dialog.popup_centered()
+
+func _ask_demo_start() -> void:
+    pending_demo_start = true
+    new_game_dialog.title = "Prova demo estesa"
+    new_game_dialog.dialog_text = "Conserva la partita attuale come backup e inizia con cortile ampliato, arma Lv.2 e risorse iniziali. Le spedizioni saranno tutte da scoprire."
+    new_game_dialog.popup_centered()
+
+func _demo_seed_data() -> Dictionary:
+    return {"version":8,"game_release":"alfa14","development_cycle":15,"frontier":{},"wood":80,"coins":30,"hp":100,"px":0,"pz":2,"weapon_level":2,"stockade_built":true,"base_level":2,"base_hp":CABIN_HP_MAX,"bench_hp":BENCH_HP_MAX,"gate_hp":GATE_HP_MAX,"wall_hp":[240,240,240,240,240,240,240,240,240],"defense_hp_scale":WALL_HP_MAX,"expedition":{"blueprint":true},"elapsed":0,"next_raid":FIRST_RAID_TIME}
+
+func _prepare_new_game(demo: bool) -> bool:
+    var directory: String = _save_directory()
+    if directory.is_empty() or DirAccess.make_dir_recursive_absolute(directory) != OK: return false
+    var current: String = directory.path_join("partita.json")
+    var backup := ""
+    if FileAccess.file_exists(current):
+        backup = directory.path_join("partita_backup_%s_%d.json" % [Time.get_datetime_string_from_system().replace(":","-"),Time.get_ticks_usec()])
+        if DirAccess.rename_absolute(current,backup) != OK: return false
+    if demo:
+        var file := FileAccess.open(current,FileAccess.WRITE)
+        if file == null:
+            if not backup.is_empty(): DirAccess.rename_absolute(backup,current)
+            return false
+        file.store_string(JSON.stringify(_demo_seed_data(),"  "))
+        file.close()
+    return true
 
 func _start_new_game() -> void:
-    var current: String = _save_directory().path_join("partita.json")
-    if FileAccess.file_exists(current):
-        var backup: String = _save_directory().path_join("partita_backup_%s.json" % Time.get_datetime_string_from_system().replace(":","-"))
-        var status: int = DirAccess.rename_absolute(current,backup)
-        if status != OK:
-            show_message("Impossibile creare backup della partita. Operazione annullata.",3.0)
-            return
+    if not _prepare_new_game(pending_demo_start):
+        show_message("Impossibile preparare la partita in sicurezza. Operazione annullata.",4)
+        return
     skip_save_on_exit = true
     get_tree().reload_current_scene()
 
@@ -1655,7 +1725,7 @@ func _wall_hp_for_save() -> Array:
 func _save_progress() -> void:
     # Durante la chiusura della scena il protagonista puo' essere gia' stato liberato.
     # Mai creare/troncare partita.json prima di sapere che i dati sono leggibili.
-    if not is_instance_valid(hero) or not save_backup_ready:
+    if not is_instance_valid(hero) or not save_backup_ready or hero.hp <= 0:
         return
     var directory := _save_directory()
     if directory.is_empty():
@@ -1669,7 +1739,7 @@ func _save_progress() -> void:
         return
     var radio_finished: int = radio_station.completed if is_instance_valid(radio_station) else 0
     var radio_ready: float = radio_station.next_ready if is_instance_valid(radio_station) else 0.0
-    var data := {"game_release":"alfa14","development_cycle":15,"base_level":base_level,"expedition":expedition.save_data(),"salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
+    var data := {"game_release":"alfa14","development_cycle":15,"frontier":frontier.save_data(),"base_level":base_level,"expedition":expedition.save_data(),"salvage":salvage.save_data(),"version":8,"radio_finished":radio_finished,"radio_next_ready":radio_ready,"collected_supplies":collected_supplies,"supply_goal":supply_goal,"wood":wood,"coins":coins,"kills":kills,"weapon_level":weapon_level,"base_hp":base_hp,"wall_hp":_wall_hp_for_save(),"defense_hp_scale":WALL_HP_MAX,"gate_hp":gate_hp,"bench_hp":bench_hp,"camera_distance":camera_distance,"stockade_built":stockade_built,"gate_broken":gate_broken,"elapsed":elapsed,"next_raid":next_raid,"raid_number":raid_number,"px":hero.position.x,"pz":hero.position.z,"hp":hero.hp}
     file.store_string(JSON.stringify(data,"  "))
     file.close()
 
@@ -1689,6 +1759,8 @@ func _load_progress() -> void:
         save_backup_ready = _backup_before_alpha14(path)
     if save_backup_ready and int(parsed.get("development_cycle",14)) < 15:
         save_backup_ready = _backup_before_cycle15(path)
+    if save_backup_ready and not parsed.has("frontier"):
+        save_backup_ready = _backup_before_cycle15(path,"demo")
     base_level = clampi(int(parsed.get("base_level",1)),1,2)
     expedition.load_data(parsed.get("expedition",{}))
     salvage.load_data(parsed.get("salvage",{}))
@@ -1703,6 +1775,7 @@ func _load_progress() -> void:
     elapsed = float(parsed.get("elapsed",0.0))
     next_raid = maxf(elapsed + 180.0,float(parsed.get("next_raid",FIRST_RAID_TIME)))
     raid_number = int(parsed.get("raid_number",0))
+    frontier.load_data(parsed.get("frontier",{}))
     if is_instance_valid(radio_station):
         radio_station.completed = int(parsed.get("radio_finished",0))
         radio_station.next_ready = float(parsed.get("radio_next_ready",0.0))
@@ -1734,6 +1807,7 @@ func _load_progress() -> void:
                             mesh.visible = false
                     var collider: CollisionShape3D = wall_segments[i]["collider"]
                     collider.set_deferred("disabled",true)
+    hero.position = frontier.clamp_hero(hero.position)
     _sync_structure_visuals()
     show_message("Partita recuperata dai salvataggi.", 3.0)
 
@@ -1755,6 +1829,7 @@ func _manual_position(kind: String) -> Vector3:
         return Vector3(0,0,gate_front_z())
     if kind == "bench":
         return repair_bench.global_position
+    if kind.begins_with("station:"): return frontier.stations[kind.get_slice(":",1)]["node"].global_position
     return Vector3(0,0,-3.6)
 
 func _inspect_structure(cursor: Vector2) -> void:
@@ -1775,6 +1850,9 @@ func _inspect_structure(cursor: Vector2) -> void:
             candidates.append({"kind":"wall:%d" % i,"title":str(section["name"]),
                 "hp":float(section["hp"]),"max":WALL_HP_MAX,
                 "center":section["position"]+Vector3.UP*size.y*.5,"size":size})
+    for key in frontier.stations:
+        var station: Dictionary = frontier.stations[key]
+        candidates.append({"kind":"station:"+str(key),"title":str(frontier.STATION_INFO[key].title),"hp":station.hp,"max":160,"center":station.node.global_position+Vector3.UP*.8,"size":Vector3(1.8,1.6,1.2)})
     var kind: String = ""
     var title: String = ""
     var health: float = 0.0
@@ -1805,19 +1883,13 @@ func _inspect_structure(cursor: Vector2) -> void:
     var label := Label.new()
     label.text = "%s | %d / %d HP" % [title,ceili(health),int(maximum)]
     body.add_child(label)
-    var cost: int = 12 if kind == "cabin" else BENCH_REPAIR_COST
+    var cost: int = repair_cost(kind)
     var near: bool = hero.global_position.distance_to(_manual_position(kind)) <= 4.4
     var button := Button.new()
-    button.text = "Ripara | %d legno" % cost if near else "Avvicinati per riparare"
+    button.text = "Ripara al 100%% | %d legno%s" % [cost," (materiali insufficienti)" if wood < cost else ""] if near else "Avvicinati per riparare"
     button.disabled = not near or wood < cost or health >= maximum
     button.pressed.connect(func(): _repair_selected(kind))
     body.add_child(button)
-    var expand := Button.new()
-    expand.text = "Amplia cortile | 120 legno + 60 monete" if expedition.blueprint else "Ampliamento: recupera il carretto a SUD-EST"
-    expand.disabled = base_level >= 2 or not expedition.blueprint or wood < EXPANSION_WOOD or coins < EXPANSION_COINS
-    if base_level >= 2: expand.text = "Cortile ampliato"
-    expand.pressed.connect(_expand_base)
-    body.add_child(expand)
     var close := Button.new()
     close.text = "Chiudi"
     close.pressed.connect(func(): repair_popup.hide())
@@ -1921,6 +1993,12 @@ func _expand_base() -> void:
     var previous_hp: Array = _wall_hp_for_save()
     wood -= EXPANSION_WOOD
     coins -= EXPANSION_COINS
+    for enemy in enemies:
+        if is_instance_valid(enemy) and not _inside_stockade(enemy.position):
+            var old: Vector3 = enemy.position
+            base_level = 2
+            enemy.position = safe_enemy_spawn(old)
+            base_level = 1
     base_level = 2
     current_gate_open = 0.0
     _build_stockade()
@@ -1931,11 +2009,25 @@ func _expand_base() -> void:
     show_message("CORTILE AMPLIATO! Cancello spostato verso SUD; danni e riparazioni conservati.",5.0)
     _save_progress()
 
-func _backup_before_cycle15(path: String) -> bool:
-    var backup: String = path.get_base_dir().path_join("partita_pre_alfa15.json")
+func _backup_before_cycle15(path: String, suffix: String = "alfa15") -> bool:
+    var backup: String = path.get_base_dir().path_join("partita_pre_%s.json" % suffix)
     if FileAccess.file_exists(backup):
-        backup = path.get_base_dir().path_join("partita_pre_alfa15_%d_%d.json" % [int(Time.get_unix_time_from_system()),Time.get_ticks_usec()])
+        backup = path.get_base_dir().path_join("partita_pre_%s_%d_%d.json" % [suffix,int(Time.get_unix_time_from_system()),Time.get_ticks_usec()])
     if DirAccess.dir_exists_absolute(backup) or DirAccess.copy_absolute(path,backup) != OK:
         push_warning("Backup pre Alfa 15 non riuscito: partita originale protetta, salvataggio sospeso.")
         return false
     return FileAccess.get_file_as_bytes(path) == FileAccess.get_file_as_bytes(backup)
+
+func defense_zone(at: Vector3) -> String:
+    if absf(at.x) >= base_half_width()-.5: return "EST" if at.x > 0 else "OVEST"
+    return "SUD" if at.z > 0 else "NORD"
+
+func safe_enemy_spawn(at: Vector3) -> Vector3:
+    if not stockade_built: return at
+    var margin := 1.3 # Include il raggio del bruto, la parete e il margine fisico.
+    if absf(at.x) > base_half_width()+margin or at.z < base_back_z()-margin or at.z > gate_front_z()+margin: return at
+    var candidates: Array[Vector3] = [Vector3(-base_half_width()-margin,at.y,at.z),Vector3(base_half_width()+margin,at.y,at.z),Vector3(at.x,at.y,base_back_z()-margin),Vector3(at.x,at.y,gate_front_z()+margin)]
+    var best: Vector3 = candidates[0]
+    for point in candidates:
+        if point.distance_squared_to(at) < best.distance_squared_to(at): best = point
+    return best
