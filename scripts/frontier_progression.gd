@@ -331,7 +331,7 @@ func enter_area(area: int) -> void:
     game.hero.velocity = Vector3.ZERO
     menu.hide()
     _spawn_group(center(area)+Vector3(-8,0,0),2)
-    game.show_message(["Ispeziona i due punti di accesso, poi recupera la cassa principale. Puoi rischiare per altro carico.","Scegli come alimentare il recupero, ripristina il quadro e raggiungi il materiale.","Rileva i due punti, tenendo lontani gli zombie, poi recupera i risultati. Rientra quando vuoi."][area],6)
+    game.show_message(["Libera i due fermi, poi avvia il verricello: accompagna l’apparato e proteggilo. G: scopo e istruzioni.","Prepara i due quadri, avvia la carica e proteggi l’apparato. G: scopo e istruzioni.","Rileva i due punti, attiva la rete e collega entrambi i sensori. G: scopo e istruzioni."][area],6)
     game._save_progress()
 func interact() -> bool:
     if active_area < 0 or game.paused: return false
