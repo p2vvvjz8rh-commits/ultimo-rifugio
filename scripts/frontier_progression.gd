@@ -26,6 +26,9 @@ var primary := false
 var power_mode := -1
 var notes: Array = []
 var models: Array[Node3D] = []
+var area_environments: Array[Environment] = []
+var original_sun_color: Color
+var original_sun_energy: float
 var point_models: Array = []
 var menu: PopupPanel
 var menu_body: VBoxContainer
@@ -39,6 +42,8 @@ var objective_label: Label3D
 
 func configure(world) -> void:
     game = world
+    original_sun_color = game.get_node("Sole_del_pomeriggio").light_color
+    original_sun_energy = game.get_node("Sole_del_pomeriggio").light_energy
     board = Node3D.new()
     add_child(board)
     board.position = Vector3(3.1,0,3.0)
@@ -74,12 +79,37 @@ func configure(world) -> void:
     add_child(note_dialog)
     objective_marker = Node3D.new()
     add_child(objective_marker)
-    game._cone(objective_marker,"Indicatore_obiettivo",Vector3(0,.05,0),1.05,.06,"#edc35c",1.05)
+    var ring := MeshInstance3D.new()
+    var torus := TorusMesh.new()
+    torus.inner_radius = .85
+    torus.outer_radius = 1.0
+    torus.rings = 24
+    torus.ring_segments = 6
+    ring.mesh = torus
+    ring.scale.y = .24
+    ring.position.y = .08
+    ring.material_override = preload("res://scripts/mission_landscape.gd").new().material("#d4ae62","metal")
+    objective_marker.add_child(ring)
     objective_label = _label3(objective_marker,Vector3(0,2.7,0),"OBIETTIVO [F]")
-    objective_label.modulate = Color("#ffe195")
+    objective_label.modulate = Color("#f0d7a5")
+    objective_label.pixel_size = .007
+    objective_label.font_size = 28
     objective_label.no_depth_test = true
     objective_marker.visible = false
-    for area in range(3): _create_area(area)
+    for area in range(3):
+        _create_area(area)
+        var atmosphere := Environment.new()
+        atmosphere.background_mode = Environment.BG_COLOR
+        atmosphere.background_color = Color("#718077")
+        atmosphere.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+        atmosphere.ambient_light_color = Color("#8a9eac")
+        atmosphere.ambient_light_energy = .35
+        atmosphere.tonemap_exposure = .78
+        atmosphere.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+        atmosphere.fog_enabled = true
+        atmosphere.fog_light_color = Color("#8e9f91")
+        atmosphere.fog_density = .003
+        area_environments.append(atmosphere)
     ops = preload("res://scripts/mission_operations.gd").new()
     add_child(ops)
     ops.configure(self)
@@ -132,7 +162,8 @@ func _create_area(area: int) -> void:
         for x in [-5,0,5]: _solid(place,Vector3(x,0,0),Vector3(2,1.0,3),"#88856a")
         for i in range(4): game._box(place,"Trave",Vector3(-5+i*3,.3,-4),Vector3(1.6,.35,.45),"#b1a077",.15)
     _dress_area(place,area)
-    _label3(place,Vector3(0,1.1,12),"F: RIENTRA ALLA BASE CON IL CARICO")
+    var exit_label := _label3(place,Vector3(0,1.1,12),"F: RIENTRA ALLA BASE")
+    exit_label.pixel_size = .007
     var items: Array = []
     for index in range(5):
         var item := Node3D.new()
@@ -146,6 +177,13 @@ func _create_area(area: int) -> void:
             game._box(item,"Coperchio",Vector3(0,1.07,0),Vector3(1.5,.12,1.2),"#d1ae72")
             for x in [-.46,.46]: game._box(item,"Fascia",Vector3(x,.55,.02),Vector3(.1,1.14,1.18),"#776849")
         _label3(item,Vector3(0,1.9,0),("%d: %s [F]" % [index+1,["ISPEZIONA", "RIPRISTINA", "RILEVA"][area]]) if index < 2 else ("3: CARICO PRINCIPALE [F]" if index == 2 else "FACOLTATIVO [F]"))
+        for child in item.get_children():
+            if child is Label3D:
+                child.pixel_size = .007
+                child.font_size = 26
+            elif child is MeshInstance3D:
+                child.material_override = preload("res://scripts/mission_landscape.gd").new().material("#748b81" if index < 2 else "#a08b68","metal" if index < 2 else "wood")
+        preload("res://scripts/mission_landscape.gd").new().dress_interaction(item,area,index)
         items.append(item)
     point_models.append(items)
     game._register_occluders(place)
@@ -461,17 +499,25 @@ func clamp_hero(at: Vector3) -> Vector3:
     return Vector3(clampf(at.x,c.x-16,c.x+16),at.y,clampf(at.z,-14,14))
 func _process(_delta: float) -> void:
     if game == null: return
+    game.camera.environment = area_environments[active_area] if active_area >= 0 else null
+    var sun: DirectionalLight3D = game.get_node("Sole_del_pomeriggio")
+    sun.light_color = Color(["#e4e3ce","#d4e2df","#e1dcc8"][active_area]) if active_area >= 0 else original_sun_color
+    sun.light_energy = .9 if active_area >= 0 else original_sun_energy
     objective_marker.visible = active_area >= 0
     if game.paused: return
     hint.visible = active_area >= 0
     if active_area >= 0:
         hint.position = game.hero.position+Vector3(0,2.7,0)
+        hint.pixel_size = .007
+        for item in point_models[active_area]:
+            for child in item.get_children():
+                if child is Label3D: child.visible = game.hero.position.distance_to(item.global_position) < 5.5
         objective_marker.position = objective_position()
         objective_label.text = "RIENTRO [F]" if primary else (ops.target_caption() if not ops.legacy_run and ops.phase > 0 else "OBIETTIVO %d [F]" % (objective_index()+1))
         if not ops.legacy_run and ops.phase == 1 and (active_area == 0 or (active_area == 1 and not ops.fault)):
             hint.text = "Resta vicino e proteggi l'apparato"
         else:
-            hint.text = "F: interagisci" if game.hero.position.distance_to(objective_position()) < 2.6 else "Raggiungi il cerchio sotto il bersaglio"
+            hint.text = "F: interagisci" if game.hero.position.distance_to(objective_position()) < 2.6 else ""
 func progress_text() -> String:
     if active_area >= 0: return mission_instruction()
     var count := int(ops.results[0])+int(ops.results[1])+int(ops.results[2])
@@ -572,41 +618,7 @@ func station_defense_target(at: Vector3) -> Vector3:
     return closest
 
 func _dress_area(place: Node3D, area: int) -> void:
-    game._box(place,"Margine_terreno",Vector3(0,-.3,0),Vector3(70,.1,65),"#597356")
-    for side in [-1,1]:
-        for z in [-18,-11,0,11,18]:
-            var tree := Node3D.new()
-            place.add_child(tree)
-            tree.position = Vector3(side*19,0,z)
-            game._cone(tree,"Tronco",Vector3(0,1,0),.25,2,"#765339",.18)
-            for i in range(3): game._cone(tree,"Chioma",Vector3(0,2.1+i*.8,0),1.5-i*.3,2.1,"#366b51",0)
-    for i in range(9):
-        var x: float = -12+float(i%3)*12
-        var z: float = -9+float(i/3)*8
-        var slab = game._box(place,"Lastra_consumata",Vector3(x,.015,z),Vector3(1.4,.035,1.1),"#a3a387" if area == 0 else "#89968c")
-        slab.rotation.y = float(i)*.22
-    # Tetto aperto sui lati: l'occlusione lo rende trasparente vicino al giocatore.
-    if area == 0:
-        for x in [-4,4]:
-            for z in [-2,-1,0,1,2]:
-                for side in [-1,1]: game._box(place,"Nervatura",Vector3(x+side*1.53,.8,z),Vector3(.07,1.65,.12),"#9aa795")
-            game._box(place,"Copertura_container",Vector3(x,1.65,0),Vector3(3.12,.12,5.1),"#a8b298")
-        for x in [-13,-7]:
-            for z in [-10,-5]: game._box(place,"Pilastro",Vector3(x,1.5,z),Vector3(.2,3,.2),"#866d49")
-        var roof = game._box(place,"Copertura",Vector3(-10,3.2,-7.5),Vector3(7,.2,6),"#677e72")
-        roof.rotation.z = .08
-        for i in range(3): game._box(place,"Tavole_impilate",Vector3(9,.2+i*.23,1),Vector3(3,.18,1.4),"#bd9860")
-    elif area == 1:
-        for x in [-5,5]:
-            game._box(place,"Condotta",Vector3(x,.5,-3.5),Vector3(.25,.3,7),"#b3b399")
-            game._box(place,"Base_motore",Vector3(x,.1,2),Vector3(3,.2,3),"#727e73")
-        game._box(place,"Pensilina",Vector3(0,3.5,-2),Vector3(7,.25,5),"#738d8b")
-    else:
-        for x in [-12,12]:
-            game._box(place,"Supporto",Vector3(x,1.6,-10),Vector3(.25,3.2,.25),"#87866b")
-            game._box(place,"Pannello",Vector3(x,2.6,-10),Vector3(2,.15,1.2),"#546f76",.2)
     preload("res://scripts/mission_landscape.gd").new().dress(game,place,area)
-    game._cone(place,"Segnale_rientro",Vector3(0,.25,11),1.1,.06,"#b5cda3",1.1)
 
 func _show_menu() -> void:
     menu.popup_centered()

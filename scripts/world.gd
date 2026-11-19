@@ -1548,7 +1548,7 @@ func _register_occluders(node: Node) -> void:
     # Ogni mesh e indipendente: il tetto puo svanire senza cancellare la casa.
     if node is MeshInstance3D:
         var mesh: MeshInstance3D = node as MeshInstance3D
-        if mesh.mesh != null and mesh.material_override is StandardMaterial3D:
+        if mesh.mesh != null and mesh.material_override is StandardMaterial3D and not mesh.get_meta("ground_surface",false):
             occluders.append(mesh)
     for child in node.get_children():
         _register_occluders(child)

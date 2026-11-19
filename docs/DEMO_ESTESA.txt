@@ -94,3 +94,19 @@ OPERAZIONI CON SCOPO E RISULTATO
 - Stato intermedio e risultati persistenti sono opzionali nel JSON v8. Gli incarichi
   gia in corso prima di questo aggiornamento conservano il percorso precedente.
   Backup pre operazioni prima della prima scrittura del nuovo stato.
+
+REVISIONE VISIVA DELLE SPEDIZIONI
+- Ricomposizione completa dell'ambiente: terreno continuo a bordo irregolare,
+  tracce e piazzole, scarpate e bosco a livelli; eliminate le superfici dell'arena
+  e dei blocchi prototipo, conservando esattamente i corpi fisici originali.
+- Attrezzature e coperture modellate per funzione, materiali opachi con variazione
+  superficiale, vegetazione raggruppata e dettagli statici accorpati per settore.
+- Apparati mobili e di missione rifiniti; tutte le nuove parti sono associate al
+  deterioramento, alla barra e al crollo gia presenti.
+- Illuminazione e atmosfera locali alle spedizioni; il rientro ripristina la base.
+- Segnale obiettivo ad anello e testi contestuali vicini: meno scritte sospese.
+  Scopo e azione restano nel pannello persistente e nella guida G.
+- Nessuna variazione a ricompense, requisiti, collisioni, AI o formato salvataggi.
+- Suite mission_art: assenza di nuove collisioni, budget geometrico, instancing,
+  terreno escluso dalla dissolvenza e isolamento dell'atmosfera. Queste prove
+  non misurano la qualita estetica o gli FPS reali di una partita Windows.

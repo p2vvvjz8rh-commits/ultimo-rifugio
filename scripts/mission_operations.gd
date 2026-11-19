@@ -36,10 +36,13 @@ func configure(frontier) -> void:
                 meshes.append(brace)
         else:
             meshes.append(game._cone(model,"Bobina",Vector3(0,1.55,0),.32,.45,"#c5b171",.32))
+        meshes.append_array(preload("res://scripts/mission_landscape.gd").new().dress_machine(model,area))
         var visual = game._make_structure_visual(model,"station",MAX_HP,Vector3(0,2.7,0))
         visual.bind_meshes(meshes)
         visuals.append(visual)
         labels.append(f._label3(model,Vector3(0,2.1,0),""))
+        labels.back().pixel_size = .007
+        labels.back().font_size = 26
         game._register_occluders(model)
     for index in [3,4]:
         var node := Node3D.new()

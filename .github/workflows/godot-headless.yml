@@ -103,7 +103,7 @@ jobs:
           if (-not $engine) { throw 'Motore ufficiale Windows 4.7.2 mancante' }
           # --script e --main-pack non sono disponibili nei template release.
           # L'EXE release e' gia verificato sopra; qui si usa lo stesso PCK esportato.
-          foreach ($suite in @('defense_integrity_and_alerts','frontier_progression','mission_operations')) {
+          foreach ($suite in @('defense_integrity_and_alerts','frontier_progression','mission_operations','mission_art')) {
             $isolated = Join-Path $env:RUNNER_TEMP "demo-$suite"
             New-Item -ItemType Directory -Force $isolated | Out-Null
             Copy-Item candidata/UltimoRifugio.exe,candidata/UltimoRifugio.pck,candidata/CANDIDATA_PORTATILE.txt,candidata/COMMIT.txt $isolated
