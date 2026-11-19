@@ -39,18 +39,24 @@ assert exe[:2] == b'MZ', 'Eseguibile Windows assente'
 pe = struct.unpack_from('<I', exe, 0x3c)[0]
 assert exe[pe:pe+4] == b'PE\0\0' and struct.unpack_from('<H', exe, pe+4)[0] == 0x8664
 assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
-(folder/'CANDIDATA_PORTATILE.txt').write_text('Dati di collaudo separati da Alfa 13. Conservare questo file accanto al gioco.\n',encoding='utf-8')
+(folder/'CANDIDATA_PORTATILE.txt').write_text('Dati di collaudo separati dalla versione stabile. Conservare questo file accanto al gioco.\n',encoding='utf-8')
 (folder/'AVVIA_CANDIDATA.bat').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\nstart "" "UltimoRifugio.exe"\r\n')
 (folder/'LEGGIMI.txt').write_text(
     'ULTIMO RIFUGIO - CANDIDATA DI COLLAUDO\n'
     'Estrai tutto in una NUOVA cartella e avvia AVVIA_CANDIDATA.bat.\n'
-    'Non sostituire la cartella di Alfa 13. Nessun aggiornamento automatico incluso.\n'
+    'Non sostituire la cartella di Alfa 14. Nessun aggiornamento automatico incluso.\n'
     'La candidata usa salvataggi/ accanto al proprio eseguibile.\n'
     'Non sovrascrivere la tua unica copia di una partita.\n'
     'Controlli: WASD, E banco, B costruisci/ripara, clic destro ispeziona, F recupero.\n'
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
-    'COLLAUDO RICHIESTO: animazione contro muri e scorrimento lungo i lati,\n'
-    'danni della palizzata visti dal cortile, resistenza della capanna.\n'
+    'PROVA DEMO ESTESA avvia il nuovo ciclo con cortile ampliato; conserva un backup.\n'
+    'G presso la bacheca: spedizioni, costruzioni e strumenti. H: usa un kit.\n'
+    'F nelle spedizioni: interagisci con il punto vicino o rientra dall ingresso.\n'
+    'Leggi scopo e risultato prima di partire; il cerchio indica il bersaglio, non un sentiero.\n'
+    'G sul campo mostra istruzioni complete; il recupero facoltativo non e obbligatorio.\n'
+    'Le note si aprono alla raccolta e sospendono il gioco finche chiudi il lettore.\n'
+    'COLLAUDO: scopo e utilita delle missioni, operazioni distinte e ripresa partita.\n'
+    'La durata e le prestazioni interattive Windows restano da valutare giocando.\n'
     'Rotella premuta + trascinamento ruota a 360 gradi e inclina la camera.\n'
     'Home ripristina la visuale iniziale; WASD segue la camera ruotata.\n'
     'Lo scorrimento della rotella mantiene lo zoom, anche in pausa.\n'
@@ -72,7 +78,7 @@ for stage in packed-start packed-reload; do
 import json, sys
 with open(sys.argv[1], encoding='utf-8') as stream:
     data = json.load(stream)
-assert data['version'] == 8 and 'salvage' in data and 'wall_hp' in data
+assert data['version'] == 8 and 'salvage' in data and 'wall_hp' in data and 'frontier' in data
 print('OK: PCK release, dati portatili e salvataggio v8')
 PYTEST
 done

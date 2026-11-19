@@ -55,3 +55,12 @@ Queste sono idee di sviluppo, NON tutte realizzate ora.
 - Camera orbitale a 360 gradi con rotella premuta, inclinazione e movimento coerente.
 - Rifiniture locomozione, maggiore resistenza della capanna e backup dei salvataggi.
 - Difese avanzate, fosse e percorsi obbligati restano rinviati.
+
+9. DEMO ESTESA ALFA 15 - RAMO DI SVILUPPO, DA COLLAUDARE
+- Correzioni avvisi, riparazioni complete proporzionali e integrita dei giunti.
+- Carretto e ampliamento conservati dopo il primo collaudo.
+- Tre spedizioni collegate a officina, magazzino e generatore fisici.
+- Scelte sul carico, strumenti, kit e progressione salvata.
+- Contenuti narrativi aggiuntivi consultabili nel gioco.
+- Difese avanzate e nuovi tipi di zombie restano rinviati.
+- Nessuna approvazione implicita per pubblicare Alfa 15 stabile.

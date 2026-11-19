@@ -1,0 +1,43 @@
+ULTIMO RIFUGIO - ALFA 15 (CANDIDATA)
+==================================
+
+Traguardo: esplorazione e crescita del cortile.
+Alfa 14 ha superato il collaudo finale Windows tramite aggiornatore.
+La versione stabile e il ramo main restano invariati durante questo ciclo.
+
+CARRETTO DI MATERIALI
+A sud-est (15,15), F avvia il recupero dopo aver costruito la palizzata.
+Il carico segue a 2 m/s quando il protagonista resta tra 1,6 e 3,8 metri;
+attende se il giocatore si allontana. Due piccoli incontri durante il tragitto.
+Gli zombie vaganti possono colpire il carico; le orde mantengono la base
+come obiettivo. Il cancello continua a bloccare gli zombie anche aperto.
+Consegna davanti al cancello: 35 legno, 25 monete, progetto di ampliamento.
+Perdita: nessuna penalita alle risorse gia possedute, nuovo tentativo dopo 60s.
+Dopo una consegna un nuovo carico si prepara in 600s di tempo di gioco.
+Pausa, stato del trasporto, salute, incontri gia attivati e progetto sono salvati.
+
+AMPLIAMENTO
+E al banco: progetto richiesto, costo 120 legno e 60 monete.
+Il recinto passa da 10,6 x 11,9 a 14 x 16,5 metri; il cancello resta a sud.
+Rifugio e banco rimangono nella stessa posizione. Il carico si consegna
+davanti al nuovo cancello nelle scorte successive.
+Le nove sezioni conservano HP e brecce: ampliare non ripara gratuitamente.
+Accesso, selezione, deterioramento e riparazioni usano il nuovo perimetro.
+Nessuna difesa avanzata e nessun nuovo tipo di zombie in questo ciclo.
+
+SALVATAGGI E RIPRISTINO
+JSON v8 con campi opzionali base_level, expedition e development_cycle.
+Il marcatore game_release=alfa14 resta il riferimento della precedente
+compatibilita dati, separato dal ciclo di sviluppo e dal titolo del gioco.
+Prima di scrivere nuovi campi viene creata partita_pre_alfa15.json, identica
+all'originale; se il backup fallisce, nessuna sovrascrittura della partita.
+I salvataggi Alfa 14 partono dal perimetro originale senza attivita in corso.
+config/name resta storico per mantenere il percorso dati dell'aggiornatore.
+Le candidate Windows usano cartelle portatili separate dalla versione stabile.
+
+VALIDAZIONE
+Godot 4.7.2: usare tools/VERIFICA_LINUX.sh, inclusa la suite
+expedition_and_expansion.gd. Esportare con ESPORTA_CANDIDATA_LINUX.sh.
+Il collaudo interattivo Windows deve verificare ritmo della scorta,
+leggibilita del carretto, ampliamento, accesso e riapertura della partita.
+Una candidata non autorizza il merge o l'aggiornamento della versione stabile.
