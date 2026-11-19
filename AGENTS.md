@@ -43,6 +43,7 @@ Progetto Godot 4.x per Windows con aggiornamento automatico via GitHub. Lo svilu
 - Implementato in Alfa 14: cancello riservato al protagonista, ripara tutto al banco, ispezione/riparazione individuale, deterioramento geometrico, recupero materiali e camera orbitale.
 - Conserva la possibilità di raggiungere e usare il banco, l'accesso alla base e il salvataggio durante aggiornamenti.
 - Nuove missioni e aree devono avere un obiettivo comprensibile ed evitare ripetizione eccessiva. Guida per fasi persistente, segnale sul bersaglio e istruzioni G disponibili anche sul campo.
+- Operazioni: briefing con scopo e beneficio; cerchio sul bersaglio, non sentiero. Conservare il percorso degli incarichi gia attivi privi di mission_ops. Nuove operazioni devono essere completate prima di confermare il risultato e rientrare; note e casse sono secondarie.
 - Le note raccolte vanno aperte immediatamente con pausa protettiva; ripristinare lo stato precedente alla chiusura. Non rivelare testi narrativi nei controlli grafici: usare testo di prova.
 
 ## Narrazione: protocollo anti-spoiler

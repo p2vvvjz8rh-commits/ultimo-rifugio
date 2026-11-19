@@ -3,7 +3,9 @@ Ultimo Rifugio - Demo estesa Alfa 15 - candidata
 - Avvisi dedicati per orde e difese sotto attacco, con zona e ripetizioni limitate.
 - Riparazione individuale al 100%, preventivo proporzionale e Ripara tutto coerente.
 - Correzione dei giunti fisici della palizzata e della generazione dentro l'ampliamento.
-- Tre spedizioni con ambienti allestiti, obiettivi numerati, segnale dorato e guida completa con G.
+- Tre spedizioni con ambienti allestiti, operazioni distinte, cerchio sul bersaglio e guida completa con G.
+- Briefing con scopo, azioni e beneficio concreto; note e materiali sono secondari.
+- Operazioni salvabili con protezione degli apparati, interventi e risultati permanenti.
 - Le note si aprono subito alla raccolta, con pausa protettiva e ripresa alla chiusura.
 - Officina, magazzino e generatore collegati a carico, strumenti e scelte di rischio.
 - Attrezzi e kit da campo; nuove costruzioni con HP, deterioramento, crollo e riparazioni.

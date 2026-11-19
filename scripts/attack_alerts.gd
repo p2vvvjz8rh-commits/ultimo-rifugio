@@ -34,7 +34,8 @@ func configure(world) -> void:
         else: defense_label = label
 func tick() -> void:
     if game.paused: return
-    if game.next_raid-game.elapsed <= 20 and warned_raid != game.next_raid:
+    var warning_time := 45 if game.frontier.ops.results[2] and game.frontier.working("generator") else 20
+    if game.next_raid-game.elapsed <= warning_time and warned_raid != game.next_raid:
         warned_raid = game.next_raid
         raid_label.text = "ORDA IN ARRIVO - TORNA A PREPARARE LE DIFESE"
         raid_until = game.elapsed+7

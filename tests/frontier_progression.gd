@@ -5,6 +5,12 @@ func check(ok: bool, reason: String) -> void:
         failures += 1
         push_error(reason)
 func _initialize() -> void: call_deferred("run")
+# Regressione esplicita del percorso delle partite precedenti.
+func legacy_enter(f, area: int) -> void:
+    f.enter_area(area)
+    if f.active_area >= 0:
+        f.ops.legacy_run = true
+        f._sync_points()
 func complete_route(game, heavy: bool = true) -> void:
     var f = game.frontier
     var area: int = f.active_area
@@ -45,18 +51,18 @@ func run() -> void:
     game.wood = 200
     game.stockade_built = true
     game.hero.position = f.board.position
-    f.enter_area(0)
+    legacy_enter(f,0)
     check(f.active_area == -1,"Spedizioni richiedono ampliamento gia collaudato")
     game.base_level = 2
     game._build_stockade()
     check(not f.unlocked(1) and not f.unlocked(2),"Progressione chiude le attivita successive all'inizio")
-    f.enter_area(0)
+    legacy_enter(f,0)
     check(f.active_area == 0 and game.hero.position.x > 40,"Ingresso in area separata reale")
     check(f.mission_instruction().contains("1/4") and f.objective_index() == 0,"Guida iniziale indica una prima azione concreta")
     f._process(0)
     check(f.objective_marker.visible and f.objective_marker.position == f.point(0,0),"Segnale dorato sul bersaglio reale")
     f.open_menu()
-    check(f.menu.visible and f.menu_body.get_child(0).text.contains("COME COMPLETARE"),"G mostra istruzioni complete anche sul campo")
+    check(f.menu.visible and f.menu_body.get_child(0).text.contains("SCOPO DELLA MISSIONE"),"G mostra istruzioni complete anche sul campo")
     f.menu.hide()
     await physics_frame
     var probe := PhysicsShapeQueryParameters3D.new()
@@ -119,7 +125,7 @@ func run() -> void:
     check(f.tool and f.parts == 2 and f.unlocked(1),"Strumenti dell'officina aprono nuove attivita")
     f.build_station("storage")
     check(f.working("storage") and f.capacity() == 5 and f.parts == 0,"Magazzino aumenta capacita utile nelle spedizioni")
-    f.enter_area(1)
+    legacy_enter(f,1)
     await complete_route(game)
     game.hero.position = f.point(1,4)
     f.take_loot(4,true)
@@ -136,10 +142,10 @@ func run() -> void:
     game.paused = true
     var wood_before: int = game.wood
     f.craft_kit()
-    f.enter_area(2)
+    legacy_enter(f,2)
     check(f.active_area == -1 and game.wood == wood_before,"Pausa sospende acquisti e partenze")
     game.paused = false
-    f.enter_area(2)
+    legacy_enter(f,2)
     await complete_route(game)
     game.hero.position = f.entrance(2)
     f.interact()
@@ -168,14 +174,14 @@ func run() -> void:
     await process_frame
     check(f.completed == [true,true,true] and f.stations.size() == 3 and f.parts == persisted.parts,"Stazioni e progressione completa sopravvivono al caricamento")
     game.hero.position = f.board.position
-    f.enter_area(0)
+    legacy_enter(f,0)
     await complete_route(game,false)
     var safe_parts: int = f.parts
     f.leave_area(false)
     check(f.parts == safe_parts and f.completed == [true,true,true] and f.bag_slots == 0,"Fallimento perde soltanto il carico non consegnato")
     check(f.clamp_hero(Vector3(99,0,99)).is_equal_approx(Vector3(20,0,20)),"Rientro ripristina i limiti originali del movimento")
     game.hero.position = f.board.position
-    f.enter_area(1)
+    legacy_enter(f,1)
     game.hero.position = f.point(1,0)
     f.set_power_mode(true)
     var count_after_choice: int = game.enemies.size()

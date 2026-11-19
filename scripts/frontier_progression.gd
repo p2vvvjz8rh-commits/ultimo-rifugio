@@ -6,8 +6,9 @@ const STATION_INFO := {
     "storage":{"title":"Magazzino","use":"carico da 3 a 5","at":Vector3(4.7,0,-5.6),"wood":20,"parts":2},
     "generator":{"title":"Generatore","use":"spedizione attrezzata","at":Vector3(4.7,0,-.4),"wood":25,"parts":3}
 }
-const AREA_NAMES := ["Recupero componenti","Impianto da riattivare","Ricognizione attrezzata"]
+const AREA_NAMES := ["Recupera attrezzatura utile","Stabilizza l'alimentazione","Collega la rete di allerta"]
 var game
+var ops
 var stations: Dictionary = {}
 var parts := 0
 var cells := 0
@@ -79,6 +80,9 @@ func configure(world) -> void:
     objective_label.no_depth_test = true
     objective_marker.visible = false
     for area in range(3): _create_area(area)
+    ops = preload("res://scripts/mission_operations.gd").new()
+    add_child(ops)
+    ops.configure(self)
 
 func _label3(parent: Node3D, at: Vector3, title: String) -> Label3D:
     var label := Label3D.new()
@@ -187,7 +191,7 @@ func open_menu() -> void:
     for area in range(3):
         var index: int = area
         var requirement: String = ["cortile ampliato","officina + attrezzi da campo","generatore e officina funzionanti"][area]
-        _option(("Esplora: " if not completed[area] else "Rivisita: ")+AREA_NAMES[area]+(" | "+requirement if not unlocked(area) else ""),func(): enter_area(index),not unlocked(area))
+        _option(("Missione: " if not ops.results[area] else "Rivisita: ")+AREA_NAMES[area]+(" | "+requirement if not unlocked(area) else ""),func(): show_brief(index),not unlocked(area))
     for key in STATION_INFO:
         var id: String = key
         var info: Dictionary = STATION_INFO[key]
@@ -200,7 +204,7 @@ func open_menu() -> void:
                 game._repair_selected("station:"+id)
                 open_menu(),cost == 0)
     _option("Attrezzi da campo | 8 legno + 1 componente",craft_tool,tool or not working("workshop") or parts < 1 or game.wood < 8)
-    _option("Kit da campo (H: usa) | 4 legno + 1 componente",craft_kit,not working("workshop") or kits >= 3 or parts < 1 or game.wood < 4)
+    _option("Kit da campo (H: usa) | %d legno + 1 componente" % kit_cost(),craft_kit,not working("workshop") or kits >= 3 or parts < 1 or game.wood < kit_cost())
     if not notes.is_empty(): _option("Appunti raccolti",show_notes)
     _option("Chiudi",func(): menu.hide())
     _show_menu()
@@ -236,6 +240,11 @@ func _create_station(key: String, hp: float) -> void:
         meshes.append(game._box(node,"Scarico",Vector3(.5,1.35,0),Vector3(.16,.7,.16),"#7c8984"))
     for x in [-.7,.7]:
         for z in [-.4,.4]: meshes.append(game._box(node,"Palo",Vector3(x,.65,z),Vector3(.14,1.3,.14),"#735238"))
+    if key == "workshop" and ops.results[0]:
+        meshes.append(game._box(node,"Utensiliera",Vector3(0,1.5,-.42),Vector3(1.4,.7,.1),"#8a7754"))
+        for i in range(3): meshes.append(game._box(node,"Attrezzo_recuperato",Vector3(-.45+i*.45,1.5,-.32),Vector3(.12,.45,.12),"#b1b79b"))
+    if key == "generator" and ops.results[1]:
+        meshes.append(game._box(node,"Accumulatore",Vector3(.52,.95,.2),Vector3(.55,.8,.5),"#c2af68"))
     var visual = game._make_structure_visual(node,"station",STATION_HP,Vector3(0,2.5,0))
     visual.bind_meshes(meshes)
     var body := StaticBody3D.new()
@@ -246,7 +255,10 @@ func _create_station(key: String, hp: float) -> void:
     col.shape = shape
     col.position.y = .8
     body.add_child(col)
-    _label3(node,Vector3(0,2,0),info.title)
+    var station_title: String = info.title
+    if key == "workshop" and ops.results[0]: station_title = "Officina attrezzata"
+    if key == "generator" and ops.results[1]: station_title = "Generatore stabilizzato"
+    _label3(node,Vector3(0,2,0),station_title)
     stations[key] = {"node":node,"hp":hp,"visual":visual,"collider":col}
     sync_stations()
     game._register_occluders(node)
@@ -282,8 +294,8 @@ func craft_tool() -> void:
     game._save_progress()
     open_menu()
 func craft_kit() -> void:
-    if game.paused or active_area >= 0 or game.hero.position.distance_to(board.position) > 6 or not working("workshop") or kits >= 3 or parts < 1 or game.wood < 4: return
-    game.wood -= 4
+    if game.paused or active_area >= 0 or game.hero.position.distance_to(board.position) > 6 or not working("workshop") or kits >= 3 or parts < 1 or game.wood < kit_cost(): return
+    game.wood -= kit_cost()
     parts -= 1
     kits += 1
     game._save_progress()
@@ -310,6 +322,7 @@ func enter_area(area: int) -> void:
     bag_slots = 0
     primary = false
     power_mode = -1
+    ops.reset()
     models[area].visible = true
     _sync_points()
     game.hero.clear_mouse_destination()
@@ -322,6 +335,19 @@ func enter_area(area: int) -> void:
     game._save_progress()
 func interact() -> bool:
     if active_area < 0 or game.paused: return false
+    if not ops.legacy_run:
+        if ops.phase in [2,3] and not primary and game.hero.position.distance_to(ops.pickup_position()) <= 2.6:
+            if ops.phase == 3: ops.start()
+            else: take_loot(2,false)
+            return true
+        if ops.phase == 1 and active_area == 1 and ops.fault and game.hero.position.distance_to(point(1,1)) <= 2.6:
+            ops.repair_fault()
+            return true
+        if ops.phase == 1 and active_area == 2:
+            for beacon in [3,4]:
+                if game.hero.position.distance_to(point(2,beacon)) <= 2.6:
+                    ops.install_beacon(beacon)
+                    return true
     if game.hero.position.distance_to(entrance(active_area)) < 2.8:
         leave_area(true)
         return true
@@ -347,8 +373,12 @@ func interact() -> bool:
         elif index == 2:
             if not switches[0] or not switches[1]:
                 game.show_message("Prepara entrambi i punti prima del recupero principale.",3)
+            elif not ops.legacy_run and not ops.ready_to_collect(): ops.start()
             else: take_loot(index,false)
         else:
+            if active_area == 2 and not ops.legacy_run:
+                game.show_message("Questi sono sensori: attiva prima l'apparato centrale.",3)
+                return true
             _clear_menu("CARICO FACOLTATIVO\nLibero: %d/%d. Il recupero pesante attira zombie; puoi rientrare in ogni momento." % [maxi(0,capacity()-bag_slots),capacity()])
             var chosen: int = index
             _option("Recupero leggero | 1 posto, 1 componente",func(): take_loot(chosen,false),bag_slots+1 > capacity())
@@ -360,9 +390,13 @@ func interact() -> bool:
     return true
 func take_loot(index: int, heavy: bool) -> void:
     if active_area < 0 or game.paused or index < 2 or index > 4 or used.has(index): return
-    if game.hero.position.distance_to(point(active_area,index)) > 2.6: return
+    var location: Vector3 = ops.pickup_position() if index == 2 else point(active_area,index)
+    if game.hero.position.distance_to(location) > 2.6: return
     if index == 2 and (not switches[0] or not switches[1]): return
-    var slots := 2 if heavy else 1
+    if index == 2 and not ops.ready_to_collect():
+        game.show_message("Porta prima a termine l'operazione indicata.",3)
+        return
+    var slots := (0 if not ops.legacy_run else 1) if index == 2 else (2 if heavy else 1)
     if bag_slots+slots > capacity():
         game.show_message("Carico pieno. Rientra o lascia il materiale facoltativo.",3)
         return
@@ -388,6 +422,7 @@ func _spawn_group(at: Vector3, count: int) -> void:
 func _sync_points() -> void:
     for area in range(3):
         for i in range(5): point_models[area][i].visible = active_area != area or not used.has(i)
+    if is_instance_valid(ops): ops.sync_visuals()
 func leave_area(deliver: bool) -> void:
     if active_area < 0: return
     var old_area: int = active_area
@@ -399,13 +434,16 @@ func leave_area(deliver: bool) -> void:
                 game.wood += 35
                 game.coins += 20
             completed[old_area] = true
-        game.show_message("Rientro completato: +%d componenti, +%d celle. Carico al sicuro." % [bag_parts,bag_cells],5)
+            if not ops.legacy_run: apply_mission_result(old_area)
+        if not primary or ops.legacy_run:
+            game.show_message("Rientro completato: +%d componenti, +%d celle. Carico al sicuro." % [bag_parts,bag_cells],5)
     else:
         game.show_message("Spedizione interrotta: carico non consegnato perso. Progetti e base conservati.",4)
     models[old_area].visible = false
     for enemy in game.enemies:
         if is_instance_valid(enemy) and enemy.position.x > 40: enemy.queue_free()
     active_area = -1
+    ops.reset()
     bag_slots = 0
     bag_parts = 0
     bag_cells = 0
@@ -429,21 +467,22 @@ func _process(_delta: float) -> void:
     if active_area >= 0:
         hint.position = game.hero.position+Vector3(0,2.7,0)
         objective_marker.position = objective_position()
-        objective_label.text = "RIENTRO [F]" if primary else "OBIETTIVO %d [F]" % (objective_index()+1)
-        hint.text = "F: interagisci" if game.hero.position.distance_to(objective_position()) < 2.6 else "Segui il segnale dorato"
+        objective_label.text = "RIENTRO [F]" if primary else (ops.target_caption() if not ops.legacy_run and ops.phase > 0 else "OBIETTIVO %d [F]" % (objective_index()+1))
+        if not ops.legacy_run and ops.phase == 1 and (active_area == 0 or (active_area == 1 and not ops.fault)):
+            hint.text = "Resta vicino e proteggi l'apparato"
+        else:
+            hint.text = "F: interagisci" if game.hero.position.distance_to(objective_position()) < 2.6 else "Raggiungi il cerchio sotto il bersaglio"
 func progress_text() -> String:
-    var count := int(completed[0])+int(completed[1])+int(completed[2])
     if active_area >= 0: return mission_instruction()
-    if count == 3: return "RICOGNIZIONI COMPLETATE: 3/3 | nuove attivita e base operative"
-    if game.base_level < 2: return "G alla bacheca: spedizioni dopo l'ampliamento"
-    if count == 0: return "G: prima spedizione disponibile"
-    if not stations.has("workshop"): return "G alla bacheca: costruisci l'officina"
+    var count := int(ops.results[0])+int(ops.results[1])+int(ops.results[2])
+    if count == 3: return "OPERAZIONI COMPLETATE: 3/3 | benefici attivi al rifugio"
+    if game.base_level < 2: return "G alla bacheca: missioni dopo l'ampliamento"
+    if not ops.results[0]: return "G alla bacheca: missione per attrezzare l'officina"
     if not working("workshop"): return "Ripara l'officina per proseguire"
     if not tool: return "G alla bacheca: prepara gli attrezzi da campo"
-    if not completed[1]: return "G alla bacheca: seconda spedizione disponibile"
-    if not stations.has("generator"): return "G alla bacheca: costruisci il generatore"
+    if not ops.results[1]: return "G alla bacheca: missione per stabilizzare l'alimentazione"
     if not working("generator"): return "Ripara il generatore per proseguire"
-    return "G alla bacheca: ricognizione attrezzata disponibile"
+    return "G alla bacheca: missione per collegare la rete di allerta"
 func show_notes() -> void:
     _clear_menu("APPUNTI DI CAMPO")
     var entries: Array = load("res://resources/field_entries.gd").new().entries
@@ -461,7 +500,7 @@ func save_data() -> Dictionary:
     for enemy in game.enemies:
         if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and not enemy.defeated and enemy.position.x > 40:
             remote_enemies.append({"x":enemy.position.x,"z":enemy.position.z,"hp":enemy.hp,"variant":enemy.variant})
-    return {"parts":parts,"cells":cells,"tool":tool,"kits":kits,"completed":completed,"visits":visits,"stations":buildings,"active_area":active_area,"used":used,"switches":switches,"bag_parts":bag_parts,"bag_cells":bag_cells,"bag_slots":bag_slots,"primary":primary,"power_mode":power_mode,"notes":notes,"enemies":remote_enemies}
+    return {"parts":parts,"cells":cells,"tool":tool,"kits":kits,"completed":completed,"visits":visits,"stations":buildings,"active_area":active_area,"used":used,"switches":switches,"bag_parts":bag_parts,"bag_cells":bag_cells,"bag_slots":bag_slots,"primary":primary,"power_mode":power_mode,"notes":notes,"enemies":remote_enemies,"mission_ops":ops.save_data()}
 func load_data(data) -> void:
     if not data is Dictionary: return
     parts = maxi(0,int(data.get("parts",0)))
@@ -473,6 +512,9 @@ func load_data(data) -> void:
     for i in range(3):
         completed[i] = bool(saved_completed[i]) if saved_completed is Array and saved_completed.size() > i else false
         visits[i] = maxi(0,int(saved_visits[i])) if saved_visits is Array and saved_visits.size() > i else 0
+    var saved_ops = data.get("mission_ops",{})
+    var saved_results = saved_ops.get("results",[]) if saved_ops is Dictionary else []
+    for i in range(3): ops.results[i] = bool(saved_results[i]) if saved_results is Array and saved_results.size() > i else false
     for key in stations: stations[key].node.queue_free()
     stations.clear()
     var saved_stations = data.get("stations",{})
@@ -502,6 +544,7 @@ func load_data(data) -> void:
                 var at := Vector3(clampf(float(saved.get("x",center(active_area).x)),center(active_area).x-15,center(active_area).x+15),.13,clampf(float(saved.get("z",0)),-13,13))
                 game._spawn_enemy(at,"normal",false)
                 game.enemies.back().hp = clampf(float(saved.get("hp",48)),1,48)
+    ops.load_data(data.get("mission_ops",{}),active_area >= 0)
     _sync_points()
 
 func set_power_mode(heavy: bool) -> void:
@@ -580,13 +623,16 @@ func steer(at: Vector3, direction: Vector3) -> Vector3:
 
 func objective_index() -> int:
     if primary: return -1
+    if not ops.legacy_run and ops.phase > 0: return 2
     if not switches[0]: return 0
     if not switches[1]: return 1
     return 2
 
 func objective_position() -> Vector3:
     if active_area < 0: return board.position
-    return entrance(active_area) if primary else point(active_area,objective_index())
+    if primary: return entrance(active_area)
+    if not ops.legacy_run and ops.phase > 0: return ops.target()
+    return point(active_area,objective_index())
 
 func mission_instruction() -> String:
     var index := objective_index()
@@ -597,14 +643,18 @@ func mission_instruction() -> String:
             ["1/4 Scegli l'alimentazione al quadro 1 [F]","2/4 Ripristina il quadro 2 [F]","3/4 Recupera i componenti principali [F]"],
             ["1/4 Metti in sicurezza e rileva il punto 1 [F]","2/4 Rileva il punto 2 senza zombie vicini [F]","3/4 Recupera i risultati nella cassa [F]"]]
         action = actions[active_area][index]
+    if not ops.legacy_run:
+        if ops.phase > 0 and not primary: action = ops.instruction()
+        elif not primary:
+            action = [["1/4 Libera il primo fermo [F]","2/4 Libera il secondo fermo [F]","3/4 Avvia il verricello [F]"],["1/4 Imposta l'alimentazione [F]","2/4 Ripristina il quadro 2 [F]","3/4 Avvia e proteggi l'apparato [F]"],["1/4 Rileva il punto 1 [F]","2/4 Rileva il punto 2 [F]","3/4 Attiva la rete centrale [F]"]][active_area][index]
     var delta: Vector3 = objective_position()-game.hero.position
     var direction := "NORD" if delta.z < 0 else "SUD"
     if absf(delta.x) > absf(delta.z)*2: direction = "EST" if delta.x > 0 else "OVEST"
     elif absf(delta.x) > 2: direction += "-EST" if delta.x > 0 else "-OVEST"
-    var cargo := "G: guida | Conserva 1 posto per la cassa"
+    var cargo := "G: scopo e istruzioni | Risultato sempre trasportabile" if not ops.legacy_run else "G: guida | Conserva 1 posto per la cassa"
     if primary: cargo = "G: guida | Rientra o cerca carico facoltativo"
     elif bag_slots >= capacity(): cargo = "Carico pieno: rientra con il recupero parziale"
-    return "%s\nSegnale dorato: %s · %dm | Carico %d/%d\n%s" % [action,direction,ceili(Vector2(delta.x,delta.z).length()),bag_slots,capacity(),cargo]
+    return "%s\nCerchio sotto il bersaglio: %s · %dm | Carico %d/%d\n%s" % [action,direction,ceili(Vector2(delta.x,delta.z).length()),bag_slots,capacity(),cargo]
 
 func show_collected_note(index: int) -> void:
     if not notes.has(index) or note_open: return
@@ -626,9 +676,40 @@ func close_note() -> void:
 func show_mission_help() -> void:
     if active_area < 0 or game.paused: return
     game.hero.clear_mouse_destination()
-    _clear_menu("COME COMPLETARE LA SPEDIZIONE\n\n"+mission_instruction()+"\n\n1 e 2: segui i segnali numerati e premi F da vicino. Allontana gli zombie se il punto non e sicuro.\n3: recupera il carico principale al segnale dorato.\n4: torna al cerchio d'ingresso e premi F. La CONSEGNA completa la missione.\n\nLe altre casse sono FACOLTATIVE. Conserva un posto libero per il carico principale; il recupero pesante attira altri zombie. Puoi rientrare prima con un carico parziale e riprovare.\nG riapre questa guida.")
-    _option("Riprendi la spedizione",func(): menu.hide())
+    var purpose: String = ops.result_text(active_area) if not ops.legacy_run else "Consegna il recupero per conservare i materiali e completare la partita gia iniziata."
+    _clear_menu("SCOPO DELLA MISSIONE\n"+purpose+"\n\nORA: "+mission_instruction()+"\n\nIl CERCHIO DORATO evidenzia un oggetto, non un percorso. Avvicinati e premi F quando richiesto.\nCompleta l'operazione, conferma il risultato, poi rientra.\nCasse facoltative e note sono secondarie. Puoi rinunciare e tornare prima.")
+    _option("Riprendi la missione",func(): menu.hide())
     if not notes.is_empty(): _option("Rileggi ultimo appunto",func():
         menu.hide()
         show_collected_note(int(notes.back())))
     _show_menu()
+
+func show_brief(area: int) -> void:
+    if game.paused or not unlocked(area): return
+    var repeat_notice := "\n\nRisultato gia acquisito: la rivisita conserva i potenziamenti e permette recuperi facoltativi, senza duplicare il premio iniziale." if ops.results[area] else ""
+    _clear_menu(AREA_NAMES[area].to_upper()+"\n\nSCOPO E RISULTATO\n"+ops.result_text(area)+"\n\n"+[
+        "Libera i due fermi, avvia il verricello e accompagna l'apparato al punto di rientro. Gli zombie possono danneggiarlo: resta vicino e proteggilo.",
+        "Imposta l'alimentazione, ripristina il quadro e avvia la carica. Proteggi l'apparato e intervieni al quadro se l'alimentazione si interrompe.",
+        "Rileva i due punti, avvia il collegamento e installa entrambi i sensori in sicurezza. Conferma il risultato all'apparato."
+    ][area]+"\n\nPuoi ritirarti in ogni momento. La missione si completa quando torni con il risultato; i materiali facoltativi e le note sono secondari."+repeat_notice)
+    _option("Parti per questa missione",func(): enter_area(area))
+    _option("Torna alla bacheca",open_menu)
+    _show_menu()
+
+func apply_mission_result(area: int) -> void:
+    if not ops.ready_to_collect(): return
+    ops.results[area] = true
+    if area in [0,1]:
+        var key := "workshop" if area == 0 else "generator"
+        var previous_hp := STATION_HP
+        var existed: bool = stations.has(key)
+        if existed:
+            previous_hp = float(stations[key].hp)
+            stations[key].node.queue_free()
+            stations.erase(key)
+        _create_station(key,previous_hp)
+        if area == 1 and not existed: cells = maxi(0,cells-1)
+    game.show_message(["Missione riuscita: officina attrezzata, kit con meno legno.","Missione riuscita: alimentazione stabilizzata, manutenzione piu efficiente.","Missione riuscita: rete di allerta collegata al rifugio."][area],6)
+
+func kit_cost() -> int:
+    return 2 if ops.results[0] else 4

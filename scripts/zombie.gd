@@ -76,10 +76,14 @@ func _physics_process(delta: float) -> void:
     var attack_player := false
     var base_target := false
     var cart_target := false
+    var operation_target := false
     var player_distance := global_position.distance_to(game.hero.global_position)
     var hears_noise: bool = not from_wave and game.noise_time > 0.0 and global_position.distance_to(game.noise_position) < 9.0
     var in_field: bool = game.frontier.active_area >= 0 and position.x > 40
-    if in_field and player_distance < 12:
+    if in_field and player_distance >= 2.5 and game.frontier.ops.target_available(global_position):
+        target_point = game.frontier.ops.machine_position()
+        operation_target = true
+    elif in_field and player_distance < 12:
         target_point = game.hero.global_position
         attack_player = game.has_clear_path(global_position,game.hero.global_position)
     elif (player_distance < 4.4 or hears_noise) and game.has_clear_path(global_position, game.hero.global_position):
@@ -103,7 +107,7 @@ func _physics_process(delta: float) -> void:
         range_limit += 0.34
     if base_target and game.stockade_built:
         range_limit = 0.60 if variant != "brute" else 0.85
-    if distance <= range_limit and (attack_player or base_target or cart_target):
+    if distance <= range_limit and (attack_player or base_target or cart_target or operation_target):
         velocity = Vector3.ZERO
         if distance > 0.05:
             visual.look_toward(to_target.normalized(), delta)
@@ -114,6 +118,8 @@ func _physics_process(delta: float) -> void:
             visual.play_clip("Punch", 1.0, true)
             if attack_player:
                 game.hero.receive_damage(9.0 if variant != "brute" else 19.0)
+            elif operation_target:
+                game.frontier.ops.damage(8.0 if variant != "brute" else 16.0)
             elif cart_target:
                 game.expedition.damage(8.0 if variant != "brute" else 16.0)
             elif base_target:

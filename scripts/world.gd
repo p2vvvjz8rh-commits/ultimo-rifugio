@@ -1010,11 +1010,12 @@ func _repair_exists(kind: String) -> bool:
 
 func repair_cost(kind: String) -> int:
     if not _repair_exists(kind): return 0
+    var timber_factor := .8 if is_instance_valid(frontier) and frontier.ops.results[1] and frontier.working("generator") else 1.0
     var maximum := WALL_HP_MAX
     var health := WALL_HP_MAX
     var timber := 12.0
     if kind.begins_with("station:"):
-        return ceili((1.0-frontier.stations[kind.get_slice(":",1)]["hp"]/160.0)*10.0)
+        return ceili(maxf(0,1.0-frontier.stations[kind.get_slice(":",1)]["hp"]/160.0)*10.0*timber_factor-.00001)
     if kind.begins_with("wall:"): health = float(wall_segments[int(kind.get_slice(":",1))]["hp"])
     match kind:
         "wall": health = float(wall_segments[_most_damaged_wall()]["hp"]) if not wall_segments.is_empty() else maximum
@@ -1029,7 +1030,7 @@ func repair_cost(kind: String) -> int:
             health = bench_hp
             maximum = BENCH_HP_MAX
             timber = 8
-    return ceili(maxf(0,maximum-health)/maximum*timber-.00001)
+    return ceili(maxf(0,maximum-health)/maximum*timber*timber_factor-.00001)
 
 func repair_all_cost() -> int:
     var cost := repair_cost("gate")+repair_cost("cabin")+repair_cost("bench")
@@ -1770,6 +1771,8 @@ func _load_progress() -> void:
         save_backup_ready = _backup_before_cycle15(path)
     if save_backup_ready and not parsed.has("frontier"):
         save_backup_ready = _backup_before_cycle15(path,"demo")
+    if save_backup_ready and parsed.get("frontier",{}) is Dictionary and parsed.has("frontier") and not parsed["frontier"].has("mission_ops"):
+        save_backup_ready = _backup_before_cycle15(path,"operazioni")
     base_level = clampi(int(parsed.get("base_level",1)),1,2)
     expedition.load_data(parsed.get("expedition",{}))
     salvage.load_data(parsed.get("salvage",{}))

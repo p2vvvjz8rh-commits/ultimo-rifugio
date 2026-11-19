@@ -63,7 +63,7 @@ non usa attese o semplicemente orde piu numerose per prolungarlo.
 Eseguire tools/VERIFICA_LINUX.sh con Godot 4.7.2 e l'esportazione ufficiale.
 Le nuove suite controllano 1840 scansioni fisiche del perimetro, angoli,
 brecce, generazione, avvisi, preventivi e percorso completo di progressione.
-CI esegue anche le due nuove suite sul PCK esportato con motore Windows 4.7.2, oltre al doppio
+CI esegue anche le tre suite del ciclo esteso sul PCK esportato con motore Windows 4.7.2, oltre al doppio
 avvio con salvataggio. Il rendering e il ritmo Windows richiedono collaudo.
 
 RIFINITURA DOPO IL COLLAUDO DELLA DEMO
@@ -77,3 +77,20 @@ RIFINITURA DOPO IL COLLAUDO DELLA DEMO
 - Il nuovo appunto viene aperto subito alla raccolta, con pausa protettiva.
   Chiudere il lettore ripristina lo stato precedente; gli appunti rimangono rileggibili.
 - Nessun testo narrativo nei resoconti o nei log dei test. Salvataggi v8 invariati.
+
+OPERAZIONI CON SCOPO E RISULTATO
+- Prima di partire: briefing obbligatorio con scopo, azioni, risultato e rientro.
+- Il cerchio dorato indica il bersaglio, non un sentiero. G richiama lo scopo.
+- Recupero accompagnato di un apparato mobile, alimentazione da proteggere e
+  ripristinare, sensori da installare in sicurezza: operazioni diverse dalle casse.
+- Confermare il risultato e rientrare completa la missione; le note sono secondarie.
+- Risultati concreti: officina attrezzata (kit 2 legno invece di 4), generatore
+  stabilizzato (riparazioni -20% legno quando operativo), rete di allerta
+  (preavviso 45 secondi invece di 20, con generatore funzionante).
+- Benefici utili anche con postazioni gia costruite; nessuna riparazione gratuita
+  degli edifici esistenti e nessuna duplicazione del premio iniziale.
+- Il risultato principale non occupa gli spazi delle casse facoltative.
+- Apparati vulnerabili: crollo, tentativo ripetibile e ritirata; nessun nuovo nemico.
+- Stato intermedio e risultati persistenti sono opzionali nel JSON v8. Gli incarichi
+  gia in corso prima di questo aggiornamento conservano il percorso precedente.
+  Backup pre operazioni prima della prima scrittura del nuovo stato.
