@@ -117,7 +117,7 @@ if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/c
   exit 1
 fi
 
-for suite in defense_integrity_and_alerts frontier_progression mission_operations mission_art; do
+for suite in defense_integrity_and_alerts frontier_progression mission_operations mission_art base_growth; do
   echo "== Godot: $suite =="
   if ! "$GODOT" --headless --path . --script "tests/$suite.gd" >"$work/$suite.log" 2>&1; then
     cat "$work/$suite.log"; exit 1

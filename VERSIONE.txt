@@ -1,5 +1,8 @@
 Ultimo Rifugio - Demo estesa Alfa 15 - candidata
 
+- Crescita del rifugio: tre postazioni potenziabili, modelli e benefici integrati.
+- Preparazione recuperi nel bosco: scelta tra legname/monete e componenti da consegnare.
+- Campi v8 opzionali e backup pre crescita; attivita delle missioni conservate.
 - Avvisi dedicati per orde e difese sotto attacco, con zona e ripetizioni limitate.
 - Riparazione individuale al 100%, preventivo proporzionale e Ripara tutto coerente.
 - Correzione dei giunti fisici della palizzata e della generazione dentro l'ampliamento.

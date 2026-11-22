@@ -51,6 +51,8 @@ assert (folder/'UltimoRifugio.pck').stat().st_size > 100000
     'F3 apre i comandi di prova per danneggiare/riparare le strutture.\n'
     'PROVA DEMO ESTESA avvia il nuovo ciclo con cortile ampliato; conserva un backup.\n'
     'G presso la bacheca: spedizioni, costruzioni e strumenti. H: usa un kit.\n'
+    'Crescita del rifugio: potenziamenti visibili e preparazione del recupero nel bosco.\n'
+    'Smontaggio: meno legno e niente monete, componenti soltanto alla consegna.\n'
     'F nelle spedizioni: interagisci con il punto vicino o rientra dall ingresso.\n'
     'Leggi scopo e risultato prima di partire; il cerchio indica il bersaglio, non un sentiero.\n'
     'G sul campo mostra istruzioni complete; il recupero facoltativo non e obbligatorio.\n'

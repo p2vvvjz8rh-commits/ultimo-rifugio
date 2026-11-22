@@ -1010,7 +1010,7 @@ func _repair_exists(kind: String) -> bool:
 
 func repair_cost(kind: String) -> int:
     if not _repair_exists(kind): return 0
-    var timber_factor := .8 if is_instance_valid(frontier) and frontier.ops.results[1] and frontier.working("generator") else 1.0
+    var timber_factor: float = frontier.growth.repair_factor() if is_instance_valid(frontier) else 1.0
     var maximum := WALL_HP_MAX
     var health := WALL_HP_MAX
     var timber := 12.0
@@ -1773,6 +1773,8 @@ func _load_progress() -> void:
         save_backup_ready = _backup_before_cycle15(path,"demo")
     if save_backup_ready and parsed.get("frontier",{}) is Dictionary and parsed.has("frontier") and not parsed["frontier"].has("mission_ops"):
         save_backup_ready = _backup_before_cycle15(path,"operazioni")
+    if save_backup_ready and parsed.get("frontier",{}) is Dictionary and parsed.has("frontier") and not parsed["frontier"].has("base_growth"):
+        save_backup_ready = _backup_before_cycle15(path,"crescita")
     base_level = clampi(int(parsed.get("base_level",1)),1,2)
     expedition.load_data(parsed.get("expedition",{}))
     salvage.load_data(parsed.get("salvage",{}))

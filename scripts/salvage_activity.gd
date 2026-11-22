@@ -5,6 +5,8 @@ const SEARCH_SECONDS := 4.0
 const RESTOCK_SECONDS := 240.0
 var game
 var carried: int = 0
+var technical_cargo := 0
+var searching_technical := false
 var deliveries: int = 0
 var ready_at: Array[float] = [0.0,0.0,0.0]
 var labels: Array[Label3D] = []
@@ -69,7 +71,10 @@ func interact() -> void:
             game.show_message("Carico pieno: riportalo al rifugio.",2.5)
         elif game.elapsed < ready_at[index]:
             game.show_message("Materiali gia' recuperati: esplora un altro punto.",2.5)
+        elif game.frontier.growth.technical_salvage and (not game.frontier.growth.active("workshop") or not game.frontier.tool):
+            game.show_message("Smontaggio non disponibile: ripara officina II o prepara il legname alla bacheca.",4)
         else:
+            searching_technical = game.frontier.growth.technical_salvage
             searching = index
             progress = 0.0
             start_position = game.hero.global_position
@@ -85,7 +90,7 @@ func _process(delta: float) -> void:
         var distance: float = game.hero.global_position.distance_to(SITES[index])
         labels[index].visible = distance < 9
         crates[index].visible = game.elapsed >= ready_at[index]
-        labels[index].text = "RECUPERO | F" if game.elapsed >= ready_at[index] else "ESAURITO | %ds" % ceili(ready_at[index]-game.elapsed)
+        labels[index].text = ("SMONTAGGIO | F" if game.frontier.growth.technical_salvage else "RECUPERO | F") if game.elapsed >= ready_at[index] else "ESAURITO | %ds" % ceili(ready_at[index]-game.elapsed)
     if searching >= 0:
         if game.hero.global_position.distance_to(start_position) > .65 or game.hero.since_last_hit < .25:
             searching = -1
@@ -107,6 +112,8 @@ func _complete_search() -> void:
     progress = 0.0
     ready_at[site] = game.elapsed + RESTOCK_SECONDS
     carried += 1
+    if searching_technical: technical_cargo += 1
+    searching_technical = false
     # Il rischio cresce solo se si sceglie di proseguire con il carico.
     for index in range(carried):
         if game.enemies.size() >= 28:
@@ -116,7 +123,7 @@ func _complete_search() -> void:
         spawn.z = clampf(spawn.z,-19,19)
         game._spawn_enemy(spawn,"normal",false)
     game.make_noise(SITES[site],8.0)
-    game.show_message("Carico %d/3: rientra alla base o continua a cercare." % carried,3.5)
+    game.show_message("Carico %d/3 | tecnici %d: consegna per conservare il recupero." % [carried,technical_cargo],3.5)
     game._save_progress()
 
 func deposit() -> void:
@@ -124,27 +131,33 @@ func deposit() -> void:
         return
     if carried <= 0:
         return
-    var wood_reward: int = carried*12
-    var coin_reward: int = carried*8 + (10 if carried == 3 else 0)
+    var wood_reward: int = (carried-technical_cargo)*12+technical_cargo*6
+    var coin_reward: int = (carried-technical_cargo)*8 + (10 if carried-technical_cargo == 3 else 0)
+    var parts_reward: int = technical_cargo
+    game.frontier.parts += parts_reward
     game.wood += wood_reward
     game.coins += coin_reward
     carried = 0
+    technical_cargo = 0
     deliveries += 1
-    game.show_message("CARICO CONSEGNATO: +%d LEGNO, +%d MONETE" % [wood_reward,coin_reward],3.0)
+    game.show_message("CARICO CONSEGNATO: +%d LEGNO, +%d MONETE, +%d COMPONENTI" % [wood_reward,coin_reward,parts_reward],3.0)
     game._save_progress()
 
 func save_data() -> Dictionary:
-    return {"carried":carried,"deliveries":deliveries,"ready_at":ready_at}
+    return {"carried":carried,"technical_cargo":technical_cargo,"deliveries":deliveries,"ready_at":ready_at}
 
 func load_data(data: Variant) -> void:
     searching = -1
     progress = 0.0
     carried = 0
+    technical_cargo = 0
+    searching_technical = false
     deliveries = 0
     ready_at = [0.0,0.0,0.0]
     if not data is Dictionary:
         return
     carried = clampi(int(data.get("carried",0)),0,3)
+    technical_cargo = clampi(int(data.get("technical_cargo",0)),0,carried)
     deliveries = maxi(0,int(data.get("deliveries",0)))
     var times = data.get("ready_at",[])
     if times is Array:
@@ -152,6 +165,8 @@ func load_data(data: Variant) -> void:
             ready_at[index] = maxf(0,float(times[index]))
 
 func drop_carried() -> void:
+    technical_cargo = 0
+    searching_technical = false
     searching = -1
     progress = 0.0
     carried = 0

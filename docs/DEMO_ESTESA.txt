@@ -110,3 +110,27 @@ REVISIONE VISIVA DELLE SPEDIZIONI
 - Suite mission_art: assenza di nuove collisioni, budget geometrico, instancing,
   terreno escluso dalla dissolvenza e isolamento dell'atmosfera. Queste prove
   non misurano la qualita estetica o gli FPS reali di una partita Windows.
+
+CRESCITA DEL RIFUGIO E PREPARAZIONE
+- G alla bacheca, Crescita del rifugio: preventivo con requisiti e beneficio,
+  acquisto atomico e livello II visibile. Nessuna riparazione gratuita.
+- Officina II (18 legno, 2 componenti, dopo la prima spedizione): kit da 85 HP,
+  scorta fino a 5 e preparazione dello smontaggio nel bosco con attrezzi.
+- Magazzino II (22 legno, 3 componenti, dopo la seconda): 7 posti facoltativi
+  nelle spedizioni. Capacita del carretto e recupero bosco conservate.
+- Generatore II (24 legno, 3 componenti, dopo la terza): costo legno delle
+  riparazioni -35%, preavviso 60 secondi con rete collegata e luci locali.
+  Non richiede un'altra cella: non obbliga a ripetere una missione gia completata.
+- Postazioni a zero HP sospendono i benefici, conservano il livello acquisito
+  e lo riattivano con la riparazione. Tutte le parti aggiunte hanno danni e crollo.
+- Preparazione bosco: legname conserva 12 legno e 8 monete per carico, con bonus
+  monete al carico pieno. Smontaggio: 6 legno e 1 componente, senza monete.
+  Serve officina II funzionante e attrezzi all'inizio del recupero.
+- Scelta soltanto alla bacheca, senza carichi o ricerca in corso. I componenti
+  restano nel carico fino alla consegna; perdita e salvataggio trattano tutto
+  insieme. Nessuna produzione passiva e nessun cambiamento alle attivita di missione.
+- Campi opzionali base_growth e technical_cargo nel JSON v8. I vecchi carichi
+  rimangono legname; backup identico partita_pre_crescita prima dell'aggiornamento.
+- Suite base_growth su Linux e sul PCK Windows: pagamenti, requisiti, geometria,
+  danni, riparazioni, benefici operativi, cargo, scelte, duplicazioni, kit, roundtrip
+  e backup. Bilanciamento e sensazione di crescita richiedono una partita reale.

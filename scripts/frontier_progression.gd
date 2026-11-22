@@ -9,6 +9,7 @@ const STATION_INFO := {
 const AREA_NAMES := ["Recupera attrezzatura utile","Stabilizza l'alimentazione","Collega la rete di allerta"]
 var game
 var ops
+var growth
 var stations: Dictionary = {}
 var parts := 0
 var cells := 0
@@ -113,6 +114,8 @@ func configure(world) -> void:
     ops = preload("res://scripts/mission_operations.gd").new()
     add_child(ops)
     ops.configure(self)
+    growth = preload("res://scripts/base_growth.gd").new()
+    growth.configure(self)
 
 func _label3(parent: Node3D, at: Vector3, title: String) -> Label3D:
     var label := Label3D.new()
@@ -192,7 +195,7 @@ func _create_area(area: int) -> void:
 func working(key: String) -> bool:
     return stations.has(key) and float(stations[key]["hp"]) > 0
 func capacity() -> int:
-    return 5 if working("storage") else 3
+    return (7 if growth.active("storage") else 5) if working("storage") else 3
 func unlocked(area: int) -> bool:
     if not game.stockade_built or game.base_level < 2: return false
     if area == 0: return true
@@ -241,8 +244,9 @@ func open_menu() -> void:
                 game.manual_target = "station:"+id
                 game._repair_selected("station:"+id)
                 open_menu(),cost == 0)
+    _option("Crescita del rifugio | potenziamenti e preparazione",growth.open_menu)
     _option("Attrezzi da campo | 8 legno + 1 componente",craft_tool,tool or not working("workshop") or parts < 1 or game.wood < 8)
-    _option("Kit da campo (H: usa) | %d legno + 1 componente" % kit_cost(),craft_kit,not working("workshop") or kits >= 3 or parts < 1 or game.wood < kit_cost())
+    _option("Kit %d/%d | cura %d HP (H) | %d legno + 1 componente" % [kits,growth.kit_capacity(),int(growth.kit_healing()),kit_cost()],craft_kit,not working("workshop") or kits >= growth.kit_capacity() or parts < 1 or game.wood < kit_cost())
     if not notes.is_empty(): _option("Appunti raccolti",show_notes)
     _option("Chiudi",func(): menu.hide())
     _show_menu()
@@ -284,6 +288,7 @@ func _create_station(key: String, hp: float) -> void:
     if key == "generator" and ops.results[1]:
         meshes.append(game._box(node,"Accumulatore",Vector3(.52,.95,.2),Vector3(.55,.8,.5),"#c2af68"))
     var visual = game._make_structure_visual(node,"station",STATION_HP,Vector3(0,2.5,0))
+    meshes.append_array(growth.dress_station(key,node))
     visual.bind_meshes(meshes)
     var body := StaticBody3D.new()
     node.add_child(body)
@@ -296,7 +301,9 @@ func _create_station(key: String, hp: float) -> void:
     var station_title: String = info.title
     if key == "workshop" and ops.results[0]: station_title = "Officina attrezzata"
     if key == "generator" and ops.results[1]: station_title = "Generatore stabilizzato"
-    _label3(node,Vector3(0,2,0),station_title)
+    if growth.level(key) == 2: station_title += " II"
+    var station_label := _label3(node,Vector3(0,2.6,0),station_title)
+    station_label.pixel_size = .007
     stations[key] = {"node":node,"hp":hp,"visual":visual,"collider":col}
     sync_stations()
     game._register_occluders(node)
@@ -305,6 +312,7 @@ func sync_stations() -> void:
         var station: Dictionary = stations[key]
         station.visual.set_health(float(station.hp))
         station.collider.set_deferred("disabled",station.hp <= 0)
+    growth.sync_lights()
 func has_damage() -> bool:
     for key in stations:
         if stations[key].hp < STATION_HP: return true
@@ -332,7 +340,7 @@ func craft_tool() -> void:
     game._save_progress()
     open_menu()
 func craft_kit() -> void:
-    if game.paused or active_area >= 0 or game.hero.position.distance_to(board.position) > 6 or not working("workshop") or kits >= 3 or parts < 1 or game.wood < kit_cost(): return
+    if game.paused or active_area >= 0 or game.hero.position.distance_to(board.position) > 6 or not working("workshop") or kits >= growth.kit_capacity() or parts < 1 or game.wood < kit_cost(): return
     game.wood -= kit_cost()
     parts -= 1
     kits += 1
@@ -341,7 +349,7 @@ func craft_kit() -> void:
 func use_kit() -> void:
     if game.paused or kits <= 0 or game.hero.hp >= 100: return
     kits -= 1
-    game.hero.hp = minf(100,game.hero.hp+65)
+    game.hero.hp = minf(100,game.hero.hp+growth.kit_healing())
     game.hero._update_health_bar()
     game.show_message("Kit utilizzato: salute recuperata.",2)
     game._save_progress()
@@ -521,7 +529,7 @@ func _process(_delta: float) -> void:
 func progress_text() -> String:
     if active_area >= 0: return mission_instruction()
     var count := int(ops.results[0])+int(ops.results[1])+int(ops.results[2])
-    if count == 3: return "OPERAZIONI COMPLETATE: 3/3 | benefici attivi al rifugio"
+    if count == 3: return "OPERAZIONI COMPLETATE: 3/3 | "+growth.status()
     if game.base_level < 2: return "G alla bacheca: missioni dopo l'ampliamento"
     if not ops.results[0]: return "G alla bacheca: missione per attrezzare l'officina"
     if not working("workshop"): return "Ripara l'officina per proseguire"
@@ -546,13 +554,14 @@ func save_data() -> Dictionary:
     for enemy in game.enemies:
         if is_instance_valid(enemy) and not enemy.is_queued_for_deletion() and not enemy.defeated and enemy.position.x > 40:
             remote_enemies.append({"x":enemy.position.x,"z":enemy.position.z,"hp":enemy.hp,"variant":enemy.variant})
-    return {"parts":parts,"cells":cells,"tool":tool,"kits":kits,"completed":completed,"visits":visits,"stations":buildings,"active_area":active_area,"used":used,"switches":switches,"bag_parts":bag_parts,"bag_cells":bag_cells,"bag_slots":bag_slots,"primary":primary,"power_mode":power_mode,"notes":notes,"enemies":remote_enemies,"mission_ops":ops.save_data()}
+    return {"parts":parts,"cells":cells,"tool":tool,"kits":kits,"completed":completed,"visits":visits,"stations":buildings,"active_area":active_area,"used":used,"switches":switches,"bag_parts":bag_parts,"bag_cells":bag_cells,"bag_slots":bag_slots,"primary":primary,"power_mode":power_mode,"notes":notes,"enemies":remote_enemies,"mission_ops":ops.save_data(),"base_growth":growth.save_data()}
 func load_data(data) -> void:
     if not data is Dictionary: return
+    growth.load_data(data.get("base_growth",{}))
     parts = maxi(0,int(data.get("parts",0)))
     cells = maxi(0,int(data.get("cells",0)))
     tool = bool(data.get("tool",false))
-    kits = clampi(int(data.get("kits",0)),0,3)
+    kits = clampi(int(data.get("kits",0)),0,5)
     var saved_completed = data.get("completed",[])
     var saved_visits = data.get("visits",[])
     for i in range(3):
@@ -575,7 +584,7 @@ func load_data(data) -> void:
     switches = [bool(saved_switches[0]),bool(saved_switches[1])] if saved_switches is Array and saved_switches.size() == 2 else [false,false]
     bag_parts = clampi(int(data.get("bag_parts",0)),0,10)
     bag_cells = clampi(int(data.get("bag_cells",0)),0,1)
-    bag_slots = clampi(int(data.get("bag_slots",0)),0,5)
+    bag_slots = clampi(int(data.get("bag_slots",0)),0,7)
     primary = bool(data.get("primary",false))
     power_mode = clampi(int(data.get("power_mode",-1)),-1,1)
     notes.clear()
