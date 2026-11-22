@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: ad497d449c5351b7d7be1612e8e162e54266c6ca
-      CANDIDATE_TAG: demo-missioni-ad497d4
-      VERIFIED_RUN: '44548816382'
+      CANDIDATE_SHA: be151be15d4d223b9f7fd1015fa8fa66f61859d1
+      CANDIDATE_TAG: demo-missioni-be151be
+      VERIFIED_RUN: '45025920020'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-ad497d449c5351b7d7be1612e8e162e54266c6ca
-          run-id: 44548816382
+          name: UltimoRifugio-candidata-Windows-be151be15d4d223b9f7fd1015fa8fa66f61859d1
+          run-id: 45025920020
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-DemoMissioni-Windows-ad497d4.zip')
+          archive = pathlib.Path('UltimoRifugio-DemoMissioni-Windows-be151be.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -56,7 +56,7 @@ jobs:
       - name: Conserva il pacchetto verificato senza scadenze di link temporanei
         uses: actions/upload-artifact@v4
         with:
-          name: DemoEstesa-Missioni-ad497d4-files
+          name: DemoEstesa-Missioni-be151be-files
           path: candidata/*
           retention-days: 90
       - name: Pubblica solo se il tag candidato e gia disponibile
@@ -98,6 +98,11 @@ jobs:
           Verifiche Godot 4.7.2: tutte le suite Linux, 1840 scansioni fisiche delle difese,
           compatibilita v8 e backup, progressione completa delle spedizioni, esportazione,
           doppio avvio dell'EXE Windows e suite sul PCK esportato con motore Windows ufficiale.
+          Crescita del rifugio: tre postazioni al livello II, modelli e benefici integrati.
+          G alla bacheca, Crescita del rifugio: preventivi e preparazione del recupero bosco.
+          Smontaggio: meno legno e niente monete, componenti soltanto alla consegna.
+          Scelte, livelli e carico conservati nel JSON v8 con backup pre crescita.
+          Attivita delle missioni e carretto conservati.
           Revisione visiva delle tre aree: terreno, bosco, materiali, attrezzature e luce locale.
           Segnale ad anello e testi contestuali; collisioni e meccaniche conservate.
           Controllo grafico Linux degli ambienti e della camera ruotata eseguito.
@@ -106,7 +111,7 @@ jobs:
 
           Main e Alfa 14 restano invariati. Prerelease di collaudo, mai sostituire la cartella stabile.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoMissioni-Windows-ad497d4.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoMissioni-Windows-be151be.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Demo Alfa 15 revisione visiva ad497d4 — solo collaudo' \
+            --prerelease --latest=false --title 'Demo Alfa 15 crescita del rifugio be151be — solo collaudo' \
             --notes-file note-candidata.txt
