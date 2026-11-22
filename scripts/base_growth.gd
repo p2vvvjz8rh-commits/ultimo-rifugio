@@ -44,7 +44,7 @@ func open_menu() -> void:
         line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
         line.custom_minimum_size.x = 560
         f.menu_body.add_child(line)
-    var mode := "COMPONENTI: 6 legno + 1 componente, niente monete" if technical_salvage else "LEGNAME: 12 legno + 8 monete per carico"
+    var mode := "COMPONENTI | 6 legno + 1 componente" if technical_salvage else "LEGNAME | 12 legno + 8 monete"
     f._option("Preparazione bosco: "+mode,show_salvage_options)
     f._option("Torna alla bacheca",f.open_menu)
     f._show_menu()
