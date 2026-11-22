@@ -107,3 +107,21 @@ cat "$work/release14.log"
 if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/release14.log"; then
   exit 1
 fi
+
+echo "== Godot: scorta, ampliamento e compatibilita Alfa 15 =="
+if ! "$GODOT" --headless --path . --script tests/expedition_and_expansion.gd >"$work/cycle15.log" 2>&1; then
+  cat "$work/cycle15.log"; exit 1
+fi
+cat "$work/cycle15.log"
+if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/cycle15.log"; then
+  exit 1
+fi
+
+for suite in defense_integrity_and_alerts frontier_progression mission_operations mission_art base_growth; do
+  echo "== Godot: $suite =="
+  if ! "$GODOT" --headless --path . --script "tests/$suite.gd" >"$work/$suite.log" 2>&1; then
+    cat "$work/$suite.log"; exit 1
+  fi
+  cat "$work/$suite.log"
+  if grep -E -i '(ERROR:|Parse Error:|Invalid access to property|FATAL:)' "$work/$suite.log"; then exit 1; fi
+done

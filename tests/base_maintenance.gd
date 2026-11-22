@@ -63,7 +63,7 @@ func run() -> void:
     game.bench_hp = 30
     game.manual_target = "bench"
     game._repair_selected("bench")
-    check(game.bench_hp == 95 and game.wood == 92, "Costo banco e riparazione manuale")
+    check(game.bench_hp == 130 and game.wood == 93, "Costo proporzionale banco e riparazione completa")
     game.camera.position = game.repair_bench.global_position + Vector3(0,10,.01)
     game.camera.look_at(game.repair_bench.global_position)
     var screen: Vector2 = game.camera.unproject_position(game.repair_bench.global_position+Vector3.UP)
@@ -75,10 +75,10 @@ func run() -> void:
     game.hero.position = game.wall_segments[0]["position"]
     game.manual_target = "wall:0"
     game._repair_selected("wall:0")
-    check(game.wall_segments[0]["hp"] == 100 and game.wall_segments[1]["hp"] == 80, "Riparazione della sola sezione selezionata")
+    check(game.wall_segments[0]["hp"] == 240 and game.wall_segments[1]["hp"] == 80, "Riparazione della sola sezione selezionata")
     game.wood = 0
     game._repair_selected("wall:0")
-    check(game.wall_segments[0]["hp"] == 100, "Nessuna riparazione senza risorse")
+    check(game.wall_segments[0]["hp"] == 240, "Nessuna riparazione senza risorse")
     game.wood = 100
     game.hero.position = Vector3(20,0,20)
     game._repair_selected("wall:0")
@@ -86,9 +86,9 @@ func run() -> void:
     game.base_hp = 20
     game.hero.position = game.repair_bench.position
     game._repair_all_at_bench()
-    check(game.wood == 82 and not game._has_damaged_defenses(), "Ripara tutto completo e costo unico")
+    check(game.wood == 67 and not game._has_damaged_defenses(), "Ripara tutto completo e costo unico")
     game._repair_all_at_bench()
-    check(game.wood == 82, "Nessun costo per strutture integre")
+    check(game.wood == 67, "Nessun costo per strutture integre")
     await physics_frame
     await physics_frame
     check(not game.gate_barrier.disabled and not game.wall_segments[0]["collider"].disabled, "Collisioni ripristinate dopo riparazione")

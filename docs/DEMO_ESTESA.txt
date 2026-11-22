@@ -1,0 +1,136 @@
+ULTIMO RIFUGIO - DEMO ESTESA ALFA 15 (CANDIDATA)
+================================================
+Non e' una pubblicazione stabile. Main resta ad Alfa 14.
+Carretto e ampliamento sono conservati come collaudati dal giocatore.
+
+CORREZIONI PRIORITARIE
+- Preavviso orda a 20 secondi e avviso all'arrivo, in un canale dedicato.
+- Allarme difese distinto, con zona cardinale/cancello/struttura interessata.
+  I colpi vengono aggregati: ripetizione non prima di 8 secondi; una breccia
+  aggiorna subito l'allarme. Bottino e messaggi ordinari non lo cancellano.
+- Riparazioni individuali complete e atomiche. Costo legno arrotondato
+  proporzionalmente agli HP mancanti: mura 12, cancello 14, rifugio 12,
+  banco 8, nuove postazioni 10 per una ricostruzione da zero.
+  Ripara tutto usa la somma degli stessi preventivi; nessun lavoro parziale
+  se i materiali non bastano. Le finestre mostrano costo e insufficienza.
+- Collider delle sezioni sovrapposti di 16 cm lungo i giunti: eliminato il
+  passaggio fisico riprodotto a meta dei lati nel recinto originale.
+- Tutte le generazioni zombie passano da un filtro centrale che li tiene
+  fuori dal perimetro attuale, compreso l'ampliamento. La vecchia eccezione
+  per i rumori usava ancora le dimensioni originali. Espandere sposta fuori
+  gli zombie presenti nella sola fascia appena acquisita, senza rimuovere
+  quelli gia entrati attraverso una breccia nel cortile precedente.
+
+CICLO DI GIOCO
+- G presso la bacheca apre spedizioni, postazioni e strumenti.
+- Tre aree separate, realizzate a mano, con accessi progressivi e attivita
+  sul campo. Si puo rientrare in anticipo con quanto e' stato recuperato.
+- Recuperi facoltativi leggeri o pesanti: scelta fra capacita, materiali
+  e incontri aggiuntivi. Incontri limitati, nessun nuovo tipo di zombie.
+- La seconda attivita offre anche una scelta fra recupero silenzioso
+  e argano rumoroso piu redditizio. La terza richiede spazio sicuro per
+  effettuare i rilevamenti. Nessuna attesa produttiva obbligatoria.
+- Officina: attrezzi per esplorare e kit da campo (H per curarsi).
+- Magazzino: capacita trasportabile da 3 a 5 posti.
+- Generatore: utilizza un materiale recuperato e apre l'attivita attrezzata.
+- Le postazioni sono fisiche, hanno 160 HP, barre, deterioramento geometrico
+  reversibile e crollo. Si ispezionano e riparano come le altre strutture;
+  anche Ripara tutto le include. Gli zombie entrati possono attaccarle.
+- Le spedizioni consegnate sbloccano progetti e forniscono risorse per
+  costruire; ripeterle non duplica i premi iniziali. Nessun reddito passivo.
+- Contenuti narrativi brevi consultabili solo nel gioco, dopo la raccolta.
+
+AVVIO E PROGRESSI
+Estrai lo ZIP in una NUOVA cartella; apri AVVIA_CANDIDATA.bat.
+Conserva CANDIDATA_PORTATILE.txt: i salvataggi rimangono accanto alla demo.
+Non sostituire la cartella stabile e non usare l'aggiornatore per la candidata.
+Puoi giocare dall'inizio o scegliere PROVA DEMO ESTESA: quest'ultima conserva
+la partita in backup e avvia con cortile ampliato, arma Lv.2, 80 legno e
+30 monete. Non completa le nuove attivita e non assegna progetti nuovi.
+I salvataggi v8 esistenti rimangono leggibili. Prima di scrivere i nuovi
+campi si conserva partita_pre_demo.json; il fallimento del backup blocca
+le scritture. Il nome storico del progetto e il percorso dati non cambiano.
+Si salvano anche area attiva, carico, scelta del recupero, HP degli incontri,
+postazioni e progressi: chiudere il gioco non completa o duplica un'attivita.
+La morte fa perdere soltanto il carico non consegnato e mantiene i progressi
+precedenti, oltre alla penalita monete gia esistente nella versione stabile.
+
+QUALITA E LIMITI
+La durata dipende da esplorazione e scelte: non e' dichiarata una misura
+in minuti finche non sara' valutata in una partita reale su Windows.
+La demo aggiunge un percorso completo di tre attivita e tre postazioni;
+non usa attese o semplicemente orde piu numerose per prolungarlo.
+Eseguire tools/VERIFICA_LINUX.sh con Godot 4.7.2 e l'esportazione ufficiale.
+Le nuove suite controllano 1840 scansioni fisiche del perimetro, angoli,
+brecce, generazione, avvisi, preventivi e percorso completo di progressione.
+CI esegue anche le tre suite del ciclo esteso sul PCK esportato con motore Windows 4.7.2, oltre al doppio
+avvio con salvataggio. Il rendering e il ritmo Windows richiedono collaudo.
+
+RIFINITURA DOPO IL COLLAUDO DELLA DEMO
+- Funzioni provate dal tester considerate funzionanti; main resta invariato.
+- Allestimenti statici dedicati nelle tre aree: terreno calpestato, vegetazione,
+  materiali e postazioni ambientali. Nessuna nuova collisione sui punti di missione.
+- Guida persistente in quattro fasi, punti numerati, segnale dorato, distanza
+  e indicazione del prossimo obiettivo; G mostra istruzioni complete sul campo.
+- Il recupero facoltativo e la consegna sono distinti; la guida ricorda lo spazio
+  necessario al carico principale e indica come proseguire alla base.
+- Il nuovo appunto viene aperto subito alla raccolta, con pausa protettiva.
+  Chiudere il lettore ripristina lo stato precedente; gli appunti rimangono rileggibili.
+- Nessun testo narrativo nei resoconti o nei log dei test. Salvataggi v8 invariati.
+
+OPERAZIONI CON SCOPO E RISULTATO
+- Prima di partire: briefing obbligatorio con scopo, azioni, risultato e rientro.
+- Il cerchio dorato indica il bersaglio, non un sentiero. G richiama lo scopo.
+- Recupero accompagnato di un apparato mobile, alimentazione da proteggere e
+  ripristinare, sensori da installare in sicurezza: operazioni diverse dalle casse.
+- Confermare il risultato e rientrare completa la missione; le note sono secondarie.
+- Risultati concreti: officina attrezzata (kit 2 legno invece di 4), generatore
+  stabilizzato (riparazioni -20% legno quando operativo), rete di allerta
+  (preavviso 45 secondi invece di 20, con generatore funzionante).
+- Benefici utili anche con postazioni gia costruite; nessuna riparazione gratuita
+  degli edifici esistenti e nessuna duplicazione del premio iniziale.
+- Il risultato principale non occupa gli spazi delle casse facoltative.
+- Apparati vulnerabili: crollo, tentativo ripetibile e ritirata; nessun nuovo nemico.
+- Stato intermedio e risultati persistenti sono opzionali nel JSON v8. Gli incarichi
+  gia in corso prima di questo aggiornamento conservano il percorso precedente.
+  Backup pre operazioni prima della prima scrittura del nuovo stato.
+
+REVISIONE VISIVA DELLE SPEDIZIONI
+- Ricomposizione completa dell'ambiente: terreno continuo a bordo irregolare,
+  tracce e piazzole, scarpate e bosco a livelli; eliminate le superfici dell'arena
+  e dei blocchi prototipo, conservando esattamente i corpi fisici originali.
+- Attrezzature e coperture modellate per funzione, materiali opachi con variazione
+  superficiale, vegetazione raggruppata e dettagli statici accorpati per settore.
+- Apparati mobili e di missione rifiniti; tutte le nuove parti sono associate al
+  deterioramento, alla barra e al crollo gia presenti.
+- Illuminazione e atmosfera locali alle spedizioni; il rientro ripristina la base.
+- Segnale obiettivo ad anello e testi contestuali vicini: meno scritte sospese.
+  Scopo e azione restano nel pannello persistente e nella guida G.
+- Nessuna variazione a ricompense, requisiti, collisioni, AI o formato salvataggi.
+- Suite mission_art: assenza di nuove collisioni, budget geometrico, instancing,
+  terreno escluso dalla dissolvenza e isolamento dell'atmosfera. Queste prove
+  non misurano la qualita estetica o gli FPS reali di una partita Windows.
+
+CRESCITA DEL RIFUGIO E PREPARAZIONE
+- G alla bacheca, Crescita del rifugio: preventivo con requisiti e beneficio,
+  acquisto atomico e livello II visibile. Nessuna riparazione gratuita.
+- Officina II (18 legno, 2 componenti, dopo la prima spedizione): kit da 85 HP,
+  scorta fino a 5 e preparazione dello smontaggio nel bosco con attrezzi.
+- Magazzino II (22 legno, 3 componenti, dopo la seconda): 7 posti facoltativi
+  nelle spedizioni. Capacita del carretto e recupero bosco conservate.
+- Generatore II (24 legno, 3 componenti, dopo la terza): costo legno delle
+  riparazioni -35%, preavviso 60 secondi con rete collegata e luci locali.
+  Non richiede un'altra cella: non obbliga a ripetere una missione gia completata.
+- Postazioni a zero HP sospendono i benefici, conservano il livello acquisito
+  e lo riattivano con la riparazione. Tutte le parti aggiunte hanno danni e crollo.
+- Preparazione bosco: legname conserva 12 legno e 8 monete per carico, con bonus
+  monete al carico pieno. Smontaggio: 6 legno e 1 componente, senza monete.
+  Serve officina II funzionante e attrezzi all'inizio del recupero.
+- Scelta soltanto alla bacheca, senza carichi o ricerca in corso. I componenti
+  restano nel carico fino alla consegna; perdita e salvataggio trattano tutto
+  insieme. Nessuna produzione passiva e nessun cambiamento alle attivita di missione.
+- Campi opzionali base_growth e technical_cargo nel JSON v8. I vecchi carichi
+  rimangono legname; backup identico partita_pre_crescita prima dell'aggiornamento.
+- Suite base_growth su Linux e sul PCK Windows: pagamenti, requisiti, geometria,
+  danni, riparazioni, benefici operativi, cargo, scelte, duplicazioni, kit, roundtrip
+  e backup. Bilanciamento e sensazione di crescita richiedono una partita reale.

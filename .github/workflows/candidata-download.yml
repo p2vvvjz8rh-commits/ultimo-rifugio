@@ -1,4 +1,4 @@
-name: Download stabile della candidata verificata
+name: Pacchetto verificato demo estesa e download con tag
 
 on:
   pull_request:
@@ -16,9 +16,9 @@ jobs:
     timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
-      CANDIDATE_SHA: e4c25fa50853d313b8e7abcab3a67e381a830038
-      CANDIDATE_TAG: candidata-orbita-e4c25fa
-      VERIFIED_RUN: '43928443335'
+      CANDIDATE_SHA: adcc9ed301a45b41a3e7cd96f07229d03bd6fe8a
+      CANDIDATE_TAG: demo-missioni-adcc9ed
+      VERIFIED_RUN: '45026151153'
     steps:
       - name: Verifica provenienza e controlli della candidata originale
         shell: bash
@@ -29,8 +29,8 @@ jobs:
       - name: Recupera esattamente il pacchetto gia collaudato automaticamente
         uses: actions/download-artifact@v4
         with:
-          name: UltimoRifugio-candidata-Windows-e4c25fa50853d313b8e7abcab3a67e381a830038
-          run-id: 43928443335
+          name: UltimoRifugio-candidata-Windows-adcc9ed301a45b41a3e7cd96f07229d03bd6fe8a
+          run-id: 45026151153
           github-token: ${{ github.token }}
           path: candidata
       - name: Verifica file e crea lo ZIP
@@ -45,7 +45,7 @@ jobs:
           for line in (folder/'SHA256SUMS.txt').read_text().splitlines():
               digest, name = line.split(maxsplit=1)
               assert hashlib.sha256((folder/name).read_bytes()).hexdigest() == digest
-          archive = pathlib.Path('UltimoRifugio-candidata-orbita-e4c25fa.zip')
+          archive = pathlib.Path('UltimoRifugio-DemoMissioni-Windows-adcc9ed.zip')
           with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
               for item in sorted(folder.iterdir()):
                   assert item.is_file(), 'Il pacchetto deve essere privo di salvataggi locali'
@@ -53,7 +53,13 @@ jobs:
           with zipfile.ZipFile(archive) as bundle:
               assert bundle.testzip() is None
           PY
-      - name: Rendi scaricabile la candidata senza modificare main
+      - name: Conserva il pacchetto verificato senza scadenze di link temporanei
+        uses: actions/upload-artifact@v4
+        with:
+          name: DemoEstesa-Missioni-adcc9ed-files
+          path: candidata/*
+          retention-days: 90
+      - name: Pubblica solo se il tag candidato e gia disponibile
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -61,25 +67,51 @@ jobs:
             echo 'La prerelease esiste gia: non viene sovrascritta.'
             exit 0
           fi
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" >/dev/null 2>&1; then
+            echo 'Tag assente: nessuna release creata. Pacchetto verificato e conservato come artefatto, consegna diretta dello ZIP al tester.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$CANDIDATE_TAG" --jq .object.sha)" = "$CANDIDATE_SHA"
           cat > note-candidata.txt <<'NOTES'
-          Pacchetto separato per il collaudo della camera orbitale a 360 gradi.
+          Demo estesa Alfa 15: candidata separata, senza aggiornare la versione stabile.
 
-          Scarica lo ZIP, estrai tutti i file in una NUOVA cartella e apri AVVIA_CANDIDATA.bat.
-          Prova il movimento contro i muri, i danni visti dal cortile e la resistenza della capanna.
-          Tieni premuta la rotella e trascina: orizzontale ruota a 360 gradi attorno al protagonista, verticale inclina.
-          Home ripristina la visuale iniziale; la rotella libera mantiene lo zoom.
-          WASD segue la camera ruotata, mentre il clic di movimento resta coerente col punto indicato.
-          Orbita e zoom sono disponibili anche in pausa; nessuna traslazione laterale.
+          Scarica lo ZIP ed estrai TUTTO in una NUOVA cartella. Avvia AVVIA_CANDIDATA.bat.
+          Conserva CANDIDATA_PORTATILE.txt per mantenere i salvataggi accanto alla demo.
+          PROVA DEMO ESTESA permette di iniziare il nuovo ciclo con cortile ampliato:
+          conserva la partita precedente in backup e lascia le nuove attivita da completare.
+          Puoi anche proseguire dall'inizio o usare una COPIA del salvataggio della candidata precedente.
 
-          Stessi file della candidata e4c25fa gia verificata con Godot 4.7.2, test Linux, esportazione e avvio/salvataggio/riapertura Windows headless. Ricontrollati i checksum del pacchetto originale.
-          Capanna: danni ricevuti ridotti del 65%, HP massimi e salvataggi v8 invariati.
-          Conservate le meccaniche precedentemente collaudate di cancello, riparazioni e recupero.
-          Conservare CANDIDATA_PORTATILE.txt per mantenere separati i dati del collaudo.
+          Correzioni: allarmi distinti per orde e difese con zona; riparazioni individuali al 100%
+          e costo proporzionale; Ripara tutto coerente; corretti giunti fisici e generazione zombie
+          nel cortile ampliato. Carretto, ampliamento, movimento e camera conservati.
 
-          Prerelease di collaudo: non sostituisce Alfa 13. Nessun merge in main e nessun aggiornamento automatico.
+          Rifiniture: briefing con scopo e risultato, cerchio sul bersaglio e istruzioni G sul campo.
+          Operazioni distinte con attivita concrete, apparati vulnerabili e benefici permanenti.
+          Note e materiali facoltativi sono secondari; il risultato richiede completamento e rientro.
+          Conservato il percorso delle missioni gia attive nei salvataggi precedenti.
+          Le note si aprono subito alla raccolta con pausa protettiva; nessun testo narrativo nelle note di rilascio.
+          Nuovo ciclo integrato: tre spedizioni, recuperi facoltativi e scelte di rischio/carico,
+          officina, magazzino e generatore fisici, attrezzi e kit da campo. G alla bacheca; H usa kit.
+          Le costruzioni hanno salute, deterioramento geometrico, crollo e riparazioni individuali.
+          Contenuti narrativi aggiuntivi da scoprire solo nel gioco.
+
+          Verifiche Godot 4.7.2: tutte le suite Linux, 1840 scansioni fisiche delle difese,
+          compatibilita v8 e backup, progressione completa delle spedizioni, esportazione,
+          doppio avvio dell'EXE Windows e suite sul PCK esportato con motore Windows ufficiale.
+          Crescita del rifugio: tre postazioni al livello II, modelli e benefici integrati.
+          G alla bacheca, Crescita del rifugio: preventivi e preparazione del recupero bosco.
+          Smontaggio: meno legno e niente monete, componenti soltanto alla consegna.
+          Scelte, livelli e carico conservati nel JSON v8 con backup pre crescita.
+          Attivita delle missioni e carretto conservati.
+          Revisione visiva delle tre aree: terreno, bosco, materiali, attrezzature e luce locale.
+          Segnale ad anello e testi contestuali; collisioni e meccaniche conservate.
+          Controllo grafico Linux degli ambienti e della camera ruotata eseguito.
+          Resa, prestazioni, chiarezza e durata in una partita Windows
+          restano da collaudare: nessuna durata in minuti viene dichiarata senza misurazione.
+
+          Main e Alfa 14 restano invariati. Prerelease di collaudo, mai sostituire la cartella stabile.
           NOTES
-          gh release create "$CANDIDATE_TAG" UltimoRifugio-candidata-orbita-e4c25fa.zip \
+          gh release create "$CANDIDATE_TAG" UltimoRifugio-DemoMissioni-Windows-adcc9ed.zip \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --prerelease --latest=false --title 'Candidata orbita 360 gradi e4c25fa — solo collaudo' \
+            --prerelease --latest=false --title 'Demo Alfa 15 crescita del rifugio adcc9ed — solo collaudo' \
             --notes-file note-candidata.txt

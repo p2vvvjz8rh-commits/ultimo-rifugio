@@ -1,9 +1,20 @@
-Ultimo Rifugio - Alfa 14
+Ultimo Rifugio - Demo estesa Alfa 15 - candidata
 
-- Cancello riservato al protagonista finche' integro; zombie che attaccano le difese.
-- Ripara tutto al banco e ispezione/riparazione delle singole strutture con clic destro.
-- Danni geometrici a tre stati e crollo riconoscibile a zero HP.
-- Ambiente e base arricchiti; nuovi punti di recupero materiali e consegna alla base.
-- Animazione ferma contro gli ostacoli; maggiore resistenza della capanna.
-- Camera orbitale a 360 gradi con rotella premuta; inclinazione, zoom e Home.
-- Salvataggi JSON v8 compatibili, backup automatico prima dell'aggiornamento dei dati.
+- Crescita del rifugio: tre postazioni potenziabili, modelli e benefici integrati.
+- Preparazione recuperi nel bosco: scelta tra legname/monete e componenti da consegnare.
+- Campi v8 opzionali e backup pre crescita; attivita delle missioni conservate.
+- Avvisi dedicati per orde e difese sotto attacco, con zona e ripetizioni limitate.
+- Riparazione individuale al 100%, preventivo proporzionale e Ripara tutto coerente.
+- Correzione dei giunti fisici della palizzata e della generazione dentro l'ampliamento.
+- Revisione visiva delle spedizioni: terreno, bosco, materiali, attrezzature e luce locale.
+- Segnale ad anello e testi vicini per lasciare leggibile la scena.
+- Tre spedizioni con ambienti allestiti, operazioni distinte, cerchio sul bersaglio e guida completa con G.
+- Briefing con scopo, azioni e beneficio concreto; note e materiali sono secondari.
+- Operazioni salvabili con protezione degli apparati, interventi e risultati permanenti.
+- Le note si aprono subito alla raccolta, con pausa protettiva e ripresa alla chiusura.
+- Officina, magazzino e generatore collegati a carico, strumenti e scelte di rischio.
+- Attrezzi e kit da campo; nuove costruzioni con HP, deterioramento, crollo e riparazioni.
+- Avvio rapido facoltativo della demo, con backup della partita corrente.
+- Salvataggi v8 compatibili e separati dalla versione stabile; backup pre demo.
+- Contenuti narrativi aggiuntivi da scoprire giocando.
+- Nessun merge in main: Alfa 14 rimane la versione stabile.
